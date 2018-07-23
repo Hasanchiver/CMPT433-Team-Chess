@@ -2,13 +2,14 @@
 // Client-side interactions with the browser for web interface
 
 // Make connection to server when web page is fully loaded.
-
+//var socket = io.connect();
 var volume = 0;
 var tempo = 0;
 var serverErr = null;
 
 $(document).ready(function() {
 
+	var turnCounter;
 	$('#error-box').hide(); 
 	var grid = new Array(8);
 	for (var i = 0; i < 8; i++)
@@ -33,9 +34,6 @@ $(document).ready(function() {
 	}
 	populateBoard();
 	document.body.appendChild(table);
-
-
-
 
 	//Populate initial board
 	function populateBoard(){
@@ -64,11 +62,54 @@ $(document).ready(function() {
 		grid[7][7].style.backgroundImage="url('images/BlackRook.png')";
 		 
 	}
+
+	function changeTurn(newTurn){
+		turnCounter = Number(newTurn);
+		$('#turnSpan').text(turnCounter);	
+	}
 	function movePiece(from, to){
 		var imageURL = from.style.backgroundImage;
 		to.style.backgroundImage = imageURL;
 		from.style.backgroundImage = "none";
 	}
+	function promotePawn(position, pUnit, color)
+	{
+		var imageURL = "url('images/" + color + pUnit + ".png')";
+		position.style.backgroundImage = imageURL;		
+	}
+
+	//handle incoming messages from the server
+	socket.on('turn-reply', function(message){		
+		$('#error-box').hide();
+		changeTurn(message);
+		
+	});
+	socket.on('move-reply', function(message){
+		$('#error-box').hide();
+		var res = message.split(" ");
+		var fromRow = Number(res[0]) / 10;
+		var fromCol = Number(res[0]) % 8;
+		var toRow = Number(res[0]) / 10;
+		var toCol = Number(res[0]) % 8;
+		movePiece(grid[fromRow][fromCol], grid[toRow][toCol]);
+	});
+	socket.on('promote-reply', function(message){
+		$('#error-box').hide();
+		var res = message.split(" ");
+		var pawnRow = Number(res[0]) / 10;
+		var pawnCol = Number(res[0]) % 8;
+		var pUnit = res[1];
+		var color;
+		if (pawnRow == 0)
+		{
+			color = "Black";
+		}
+		else if (pawnRow == 7)
+		{
+			color = "White";
+		}
+		promotePawn(grid[pawnRow][pawnCol], pUnit, color);
+	});
 });
 
 
