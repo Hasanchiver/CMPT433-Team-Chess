@@ -4,10 +4,18 @@
 #include "Player.h"
 #include "Rules.h"
 #include "PossibleMovesList.h"
+#include "General.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+#include <stdbool.h>
+
+
+static pthread_t gameThreadId;
+
+void* GameThread(void* arg);
 
 struct game{
     ChessBoard *board;
@@ -22,7 +30,16 @@ struct game{
     int isCheck;
 };
 
-Game *CreateGame(){
+void Game_init(void){
+
+    pthread_create(&gameThreadId, NULL, GameThread, NULL);
+}
+
+
+
+
+//Starts a new game, initializing board and players
+void* GameThread(void* arg){
     Game *game = malloc(sizeof(Game));
     if (game == NULL) return NULL;
 
@@ -30,17 +47,10 @@ Game *CreateGame(){
     game->state         = MainMenu;
     game->board         = NULL;
 
-    return game;
-}
-
-//Starts a new game, initializing board and players
-void StartGame(Game *game){
-    //Initialize game variables
-    game->turn          = White;
-    game->selectedPiece = NULL;
     game->isInGame      = 1;
     game->isCheck       = 0;
     game->isCheckmate   = 0;
+    game->turn          = White;        // TODO Randomize this
 
     //Get names
     char name1[15], name2[15];
@@ -54,7 +64,7 @@ void StartGame(Game *game){
     //Create Board/Players
     game->board = CreateChessBoard(CreatePlayer(White, name1),
                                    CreatePlayer(Black, name2));
-    if (game->board == NULL) return;
+    if (game->board == NULL) return NULL;
 
     //Initialize List of each Player
     InitializeList(GetPlayer(game->board, White));
@@ -65,7 +75,22 @@ void StartGame(Game *game){
 
     //Generate Possible Moves
     UpdatePossibleMovesLists(game->board);
+
+    // TODO Implement turns
+    // while(){)
+
+    DeleteGame(&game);
+
+    return NULL;
 }
+
+
+void Game_cleanup(){
+    General_shutdown();
+    sleep_msec(1000);
+    pthread_join(gameThreadId, NULL);
+}
+
 
 void RestartGame(Game *game){
     if (game == NULL) return;
@@ -139,22 +164,6 @@ void UpdateGame(Game *game){
         printf("King in Check\n");
         game->isCheck = 1;
     }
-}
-
-void Play(Game *game){
-    //Check memory
-    if (game == NULL) return;
-
-    //Initialize Game
-    game->isInGame      = 1;
-    game->isCheck       = 0;
-    game->isCheckmate   = 0;
-    game->turn          = White;
-
-
-
-    //Game
-    //StartGameThreads(game);
 }
 
 //Doesn't delete game, but board and players

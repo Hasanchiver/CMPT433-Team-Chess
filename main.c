@@ -1,19 +1,19 @@
 
 
 #include "Game.h"
+#include "General.h"
 #include <stdlib.h>
+#include <stdbool.h>
+
 
 int main(){
-    //Initialize Game
-    Game *game = CreateGame();
-    if (game == NULL) return 0;
 
-    //Begin
-    Play(game);
-    //Finalize Game
-    DeleteGame(&game);
+    Game_init();
 
-
+    while(!General_isShuttingDown()){
+        sleep_msec(100);
+    }
+    Game_cleanup();
 
     return 1;
 }

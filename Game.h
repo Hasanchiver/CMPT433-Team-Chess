@@ -5,6 +5,7 @@
 
 #include "ChessBoard.h"
 #include "ChessPiece.h"
+#include <stdbool.h>
 
 typedef enum state{
     Playing,
@@ -16,6 +17,10 @@ typedef enum state{
 }State;
 
 typedef struct game Game;
+
+void Game_init(void);
+void Game_cleanup();
+
 
 Game* CreateGame();
 void RestartGame(Game *game);
