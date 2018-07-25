@@ -8,11 +8,13 @@
 #define BLACKSIDE 7
 #define FIRSTLETTER "a"
 #define FIRSTNUMBER "1"
+#define DRAWTIMER 50
 
 typedef struct{
 	char pieceType;
 	char pieceColor;
 	bool firstMove;
+	bool castling;
 	int idleInSquare; // number of turns pawn has stayed in square
 	bool availableMoves[BOARDGRIDSIZE][BOARDGRIDSIZE];
 } squareInfo;
@@ -22,11 +24,27 @@ static Color currentTurn = white;
 
 static bool blackCheckFlag = false;
 static bool whiteCheckFlag = false;
-//static bool blackCheckMateFlag = false;
-//static bool whiteCheckMateFlag = false;
+static bool blackCheckMateFlag = false;
+static bool whiteCheckMateFlag = false;
+static bool drawFlag = false;
+static int drawIncrement = DRAWTIMER;
+
+static int numberOfChecks = 0;
+static int checkingPieceLocation = -1;
+static int kingInCheckLocation = -1;
+
 static bool enPasseFlag = false;
+static bool queensideFlag = false;
+static bool kingsideFlag = false;
+//static int turnNumber = 0;
 
 static void ChessLogic_initLogicBoard(void){
+	blackCheckFlag = false;
+	whiteCheckFlag = false;
+	blackCheckMateFlag = false;
+	whiteCheckMateFlag = false;
+	drawFlag = false;
+	drawIncrement = DRAWTIMER;
 	for (int y = 0; y < BOARDGRIDSIZE; y++){
 		for (int x = 0; x < BOARDGRIDSIZE; x++){
 			logicBoard[x][y].pieceType = nopiece;
@@ -57,7 +75,6 @@ static void ChessLogic_initLogicBoard(void){
 		logicBoard[BOARDGRIDSIZE-1-x][BOARDGRIDSIZE-1].pieceType = rook + x;
 		logicBoard[BOARDGRIDSIZE-1-x][BOARDGRIDSIZE-1].pieceColor = black;
 	}
-	
 
 	// setup queen pieces
 	logicBoard[3][0].pieceType = queen;
@@ -72,30 +89,28 @@ static void ChessLogic_initLogicBoard(void){
 
 	logicBoard[4][BOARDGRIDSIZE-1].pieceType = king;
 	logicBoard[4][BOARDGRIDSIZE-1].pieceColor = black;
-
-	// temporary placements
-	//logicBoard[4][1].pieceType = pawn;
-	//logicBoard[4][1].pieceColor = black;
-	//logicBoard[4][1].idleInSquare = 1;
-
-	//logicBoard[3][6].pieceType = pawn;
-	//logicBoard[3][6].pieceColor = white;
-	//logicBoard[3][6].idleInSquare = 1;
-
-	//logicBoard[4][4].pieceType = king;
-	//logicBoard[4][4].pieceColor = white;
 }
 
-static int ChessLogic_getBoardLetterIncrement(char letter){
+static int getBoardLetterIncrement(char letter){
 	int letterdiff = letter - *FIRSTLETTER;
 	if (letterdiff < 0 || letterdiff >= BOARDGRIDSIZE) return -1;
 	return letterdiff;
 }
 
-static int ChessLogic_getBoardNumberIncrement(char number){
+static int getBoardNumberIncrement(char number){
 	int numberdiff = number - *FIRSTNUMBER;
 	if (numberdiff < 0 || numberdiff >= BOARDGRIDSIZE) return -1;
 	return numberdiff;
+}
+
+static int xyCoordinateToInteger(int x, int y){
+	// Converts xy coordinate to integer
+	return (y * BOARDGRIDSIZE + x);
+}
+
+static void integerToXYCoordinate(int val, int *x, int *y){
+	*x = val % BOARDGRIDSIZE;
+	*y = (val - *x) / BOARDGRIDSIZE;
 }
 
 /******************************************************
@@ -123,14 +138,13 @@ static void ChessLogic_checkPromotePawn(int srcx, int srcy, int dstx, int dsty){
 /******************************************************
  * Basic Rules - Chess Logic
  ******************************************************/
-
 static bool ChessLogic_isSameColor(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceColor == 
 		logicBoard[dstx][dsty].pieceColor) return true;
 	return false;
 }
 
-static bool CheckLogic_isJumping(int srcx, int srcy, int dstx, int dsty){
+static bool CheckLogic_isJumpingOverPiece(int srcx, int srcy, int dstx, int dsty){
 	int diffx = abs(srcx - dstx);
 	int diffy = abs(srcy - dsty);
 	// Checks if move is jumping over pieces (don't count for knight)
@@ -187,17 +201,53 @@ static bool CheckLogic_isJumping(int srcx, int srcy, int dstx, int dsty){
 }
 
 static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
-	int diffx = abs(srcx - dstx);
-	int diffy = abs(srcy - dsty);
+	int diffx = srcx - dstx;
+	int diffy = srcy - dsty;
 	// Can only move one square in any direction (
 	// Move up or down
-	if (diffx == 0 && diffy == 1) return true;
+	if (diffx == 0 && abs(diffy) == 1) return true;
 	// Move left or right
-	if (diffx == 1 && diffy == 0) return true;
+	if (diffy == 0 && abs(diffx) == 1) return true;
 	// Move diagonally
-	if (diffx == 1 && diffy == 1) return true;
-	//if (( dstx == (srcx + 1) || dstx == (srcx - 1) ) &&
-	//	( dsty == (srcy + 1) || dsty == (srcy - 1) )) return true;
+	if (abs(diffx) == 1 && abs(diffy) == 1) return true;
+
+	// Castling
+	// White queenside
+	if (diffy == 0 && diffx == 2 && whiteCheckFlag == false &&
+		logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		logicBoard[0][WHITESIDE].pieceType == rook &&
+		logicBoard[0][WHITESIDE].firstMove == true){
+		queensideFlag = true;
+		return true;
+	}
+	// White kingside
+	if (diffy == 0 && diffx == -2 && whiteCheckFlag == false &&
+		logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType == rook &&
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove == true){
+		kingsideFlag = true;
+		return true;
+	}
+	// Black queenside
+	if (diffy == 0 && diffx == 2 && blackCheckFlag == false &&
+		logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		logicBoard[0][BLACKSIDE].pieceType == rook &&
+		logicBoard[0][BLACKSIDE].firstMove == true){
+		queensideFlag = true;
+		return true;
+	}
+	// Black kingside
+	if (diffy == 0 && diffx == -2 && blackCheckFlag == false &&
+		logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType == rook &&
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove == true){
+		kingsideFlag = true;
+		return true;
+	}
 	return false;
 }
 
@@ -286,20 +336,27 @@ static bool ChessLogic_pawnMoves(int srcx, int srcy, int dstx, int dsty){
 	return false;
 }
 
-static bool ChessLogic_isCheck(int dstx, int dsty){
+static bool ChessLogic_isCheck(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[dstx][dsty].pieceType == king &&
 		logicBoard[dstx][dsty].pieceColor == white){
 		whiteCheckFlag = true;
+		checkingPieceLocation = xyCoordinateToInteger(srcx, srcy);
 		return true;
 	} else if (logicBoard[dstx][dsty].pieceType == king &&
 		logicBoard[dstx][dsty].pieceColor == black){
 		blackCheckFlag = true;
+		checkingPieceLocation = xyCoordinateToInteger(srcx, srcy);
 		return true;
 	}
 	return false;
 }
 
 static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
+	if (logicBoard[srcx][srcy].pieceType == pawn ||
+		logicBoard[dstx][dsty].pieceType != nopiece){
+		drawIncrement = DRAWTIMER;
+	}
+
 	if (logicBoard[srcx][srcy].pieceType == pawn && enPasseFlag == true){
 		if (logicBoard[dstx][dsty-1].pieceColor == black){
 			logicBoard[dstx][dsty-1].pieceType = nopiece;
@@ -313,6 +370,48 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 		}
 	}
 
+	if (logicBoard[srcx][srcy].pieceType == king && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		queensideFlag == true){
+		logicBoard[0][WHITESIDE].pieceType = nopiece;
+		logicBoard[0][WHITESIDE].pieceColor = nocolor;
+		logicBoard[0][WHITESIDE].firstMove = false;
+		logicBoard[dstx+1][dsty].pieceType = rook;
+		logicBoard[dstx+1][dsty].pieceColor = white;
+		logicBoard[dstx+1][dsty].firstMove = false;
+	}
+	if (logicBoard[srcx][srcy].pieceType == king && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		kingsideFlag == true){
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType = nopiece;
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceColor = nocolor;
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove = false;
+		logicBoard[dstx-1][dsty].pieceType = rook;
+		logicBoard[dstx-1][dsty].pieceColor = white;
+		logicBoard[dstx-1][dsty].firstMove = false;
+	}
+
+	if (logicBoard[srcx][srcy].pieceType == king && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		queensideFlag == true){
+		logicBoard[0][BLACKSIDE].pieceType = nopiece;
+		logicBoard[0][BLACKSIDE].pieceColor = nocolor;
+		logicBoard[0][BLACKSIDE].firstMove = false;
+		logicBoard[dstx+1][dsty].pieceType = rook;
+		logicBoard[dstx+1][dsty].pieceColor = black;
+		logicBoard[dstx+1][dsty].firstMove = false;
+	}
+	if (logicBoard[srcx][srcy].pieceType == king && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		kingsideFlag == true){
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType = nopiece;
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceColor = nocolor;
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove = false;
+		logicBoard[dstx-1][dsty].pieceType = rook;
+		logicBoard[dstx-1][dsty].pieceColor = black;
+		logicBoard[dstx-1][dsty].firstMove = false;
+	}
+
 	logicBoard[dstx][dsty].pieceType = logicBoard[srcx][srcy].pieceType;
 	logicBoard[dstx][dsty].pieceColor = logicBoard[srcx][srcy].pieceColor;
 	logicBoard[dstx][dsty].firstMove = false;
@@ -322,6 +421,8 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	logicBoard[srcx][srcy].pieceColor = nocolor;
 	logicBoard[srcx][srcy].firstMove = false;
 	logicBoard[srcx][srcy].idleInSquare = 0;
+
+	drawIncrement -= 1;
 }
 
 static void ChessLogic_nextTurn(){
@@ -332,36 +433,119 @@ static void ChessLogic_nextTurn(){
 /******************************************************
  * Calculate possible move for each piece of current color turn
  ******************************************************/
+// calculates possible moves to get out of check by removing 
+// possible moves that don't get out of check
+// if result has no possible moves, it is checkmate
+// 3 ways to get out of check:
+// 	- move king out of check
+// 	- move another piece to block the check
+// 	- move another piece to capture the checking piece
+// In the case of double check or more, only possible response
+// is to move the king, else checkmate
+static int ChessLogic_recalculateMovesInCheck(int srcx, int srcy){
+	int numOfPossibleMoves = 0;
+	int kingx, kingy, cpx, cpy;
+	int king2cpDiffx, king2cpDiffy, dst2cpDiffx, dst2cpDiffy;
+	integerToXYCoordinate(checkingPieceLocation, &cpx, &cpy);
+	integerToXYCoordinate(kingInCheckLocation, &kingx, &kingy);
+	king2cpDiffx = kingx - cpx;
+	king2cpDiffy = kingy - cpy;
+
+	for (int dsty = 0; dsty < BOARDGRIDSIZE; dsty++){
+		for (int dstx = 0; dstx < BOARDGRIDSIZE; dstx++){
+			if (!logicBoard[srcx][srcy].availableMoves[dstx][dsty]) continue;
+			if (numberOfChecks > 1){
+				// set available moves of other piece to false if
+				// multiple pieces are checking king
+				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
+				continue;
+			}
+			if (dstx == cpx && dsty == cpy){
+				// Available move can capture the checking piece
+				numOfPossibleMoves++;
+				wprintf(L"capture from piece %d %d\n", dstx, dsty);
+				continue;
+			}
+			dst2cpDiffx = dstx - cpx;
+			dst2cpDiffy = dsty - cpy;
+			if (kingx == srcx && kingy == srcy){
+				if (king2cpDiffx == 0 && dst2cpDiffx == 0 &&
+					(king2cpDiffy/abs(king2cpDiffy)) == (dst2cpDiffy/abs(dst2cpDiffy)) ){
+					logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
+				} else if (king2cpDiffy == 0 && dst2cpDiffy == 0 &&
+					(king2cpDiffx/abs(king2cpDiffx)) == (dst2cpDiffx/abs(dst2cpDiffx)) ){
+					logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
+				} else if (king2cpDiffx != 0 && dst2cpDiffx != 0 && 
+					king2cpDiffy != 0 && dst2cpDiffy != 0 && 
+					abs(king2cpDiffx) == abs(king2cpDiffy) &&
+					abs(dst2cpDiffx) == abs(dst2cpDiffy) &&
+					(king2cpDiffx/abs(king2cpDiffx)) == (dst2cpDiffx/abs(dst2cpDiffx)) &&
+					(king2cpDiffy/abs(king2cpDiffy)) == (dst2cpDiffy/abs(dst2cpDiffy)) ){
+					logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
+				} else {
+					numOfPossibleMoves++;
+				}
+				continue;
+			}
+			if (logicBoard[cpx][cpy].availableMoves[dstx][dsty]){
+				// Available move can block the check
+				if (king2cpDiffx == 0 && dst2cpDiffx == 0 &&
+					(king2cpDiffy/abs(king2cpDiffy)) == (dst2cpDiffy/abs(dst2cpDiffy)) ){
+					// blocking a vertical attack
+					numOfPossibleMoves++;
+					continue;
+				} else if (king2cpDiffy == 0 && dst2cpDiffy == 0 &&
+					(king2cpDiffx/abs(king2cpDiffx)) == (dst2cpDiffx/abs(dst2cpDiffx)) ){
+					// blocking horizontal attack
+					numOfPossibleMoves++;
+					continue;
+				} else if (king2cpDiffx != 0 && dst2cpDiffx != 0 && 
+					king2cpDiffy != 0 && dst2cpDiffy != 0 &&
+					(king2cpDiffx/abs(king2cpDiffx)) == (dst2cpDiffx/abs(dst2cpDiffx)) &&
+					(king2cpDiffy/abs(king2cpDiffy)) == (dst2cpDiffy/abs(dst2cpDiffy)) ){
+					// blocking diagonal attack
+					numOfPossibleMoves++;
+					continue;
+				}
+			}
+			logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
+		}
+	}
+	return numOfPossibleMoves;
+}
+
 static void ChessLogic_calculateMoves(int srcx, int srcy){
 	char currentPiece = logicBoard[srcx][srcy].pieceType;
 	for (int dsty = 0; dsty < BOARDGRIDSIZE; dsty++){
 		for (int dstx = 0; dstx < BOARDGRIDSIZE; dstx++){
 			logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
 			if (ChessLogic_isSameColor(srcx, srcy, dstx, dsty)) continue;
-			if (CheckLogic_isJumping(srcx, srcy, dstx, dsty)) continue;
+			if (CheckLogic_isJumpingOverPiece(srcx, srcy, dstx, dsty)) continue;
 
 			if (currentPiece == king){
 				if (!ChessLogic_kingMoves(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
+				queensideFlag = false;
+				kingsideFlag = false;
 			} else if (currentPiece == queen){
 				if (!ChessLogic_queenMoves(srcx, srcy, dstx, dsty)) continue;
-				if (ChessLogic_isCheck(dstx, dsty)) continue;
+				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 			} else if (currentPiece == rook){
 				if (!ChessLogic_rookMoves(srcx, srcy, dstx, dsty)) continue;
-				if (ChessLogic_isCheck(dstx, dsty)) continue;
+				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 			} else if (currentPiece == bishop){
 				if (!ChessLogic_bishopMoves(srcx, srcy, dstx, dsty)) continue;
-				if (ChessLogic_isCheck(dstx, dsty)) continue;
+				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 			} else if (currentPiece == knight){
 				if (!ChessLogic_knightMoves(srcx, srcy, dstx, dsty)) continue;
-				if (ChessLogic_isCheck(dstx, dsty)) continue;
+				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 			} else if (currentPiece == pawn){
 				if (!ChessLogic_pawnMoves(srcx, srcy, dstx, dsty)) continue;
-				if (ChessLogic_isCheck(dstx, dsty)) continue;
+				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 				enPasseFlag = false;
 			}
@@ -375,9 +559,45 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 			if (logicBoard[x][y].pieceType == nopiece) continue;
 			if (ChessLogic_isSameColor(kingx, kingy, x, y)) continue;
 
+			if (logicBoard[kingx][kingy].firstMove){
+				if (logicBoard[x][y].availableMoves[kingx+2][kingy]){
+					logicBoard[kingx][kingy].availableMoves[kingx+2][kingy] = false;
+				}
+				if (logicBoard[x][y].availableMoves[kingx-2][kingy]){
+					logicBoard[kingx][kingy].availableMoves[kingx-2][kingy] = false;
+				}
+			}
+
+			if (logicBoard[x][y].pieceType == pawn &&
+				logicBoard[x][y].pieceColor == white){
+				if (x < (BOARDGRIDSIZE-1) && x >= 0 &&
+					logicBoard[kingx][kingy].availableMoves[x+1][y+1]){
+					logicBoard[kingx][kingy].availableMoves[x+1][y+1] = false;
+				}
+				if (x > 0 && x < BOARDGRIDSIZE &&
+					logicBoard[kingx][kingy].availableMoves[x-1][y+1]){
+					logicBoard[kingx][kingy].availableMoves[x-1][y+1] = false;
+				}
+			}
+
+			if (logicBoard[x][y].pieceType == pawn &&
+				logicBoard[x][y].pieceColor == black){
+				if (x < (BOARDGRIDSIZE-1) && x >= 0 &&
+					logicBoard[kingx][kingy].availableMoves[x+1][y-1]){
+					logicBoard[kingx][kingy].availableMoves[x+1][y-1] = false;
+				}
+				if (x > 0 && x < BOARDGRIDSIZE &&
+					logicBoard[kingx][kingy].availableMoves[x-1][y-1]){
+					logicBoard[kingx][kingy].availableMoves[x-1][y-1] = false;
+				}
+			}
+
 			if ((kingx+1) < BOARDGRIDSIZE){
 				if (logicBoard[x][y].availableMoves[kingx+1][kingy]){
 					logicBoard[kingx][kingy].availableMoves[kingx+1][kingy] = false;
+					if (logicBoard[kingx][kingy].firstMove){
+						logicBoard[kingx][kingy].availableMoves[kingx+2][kingy] = false;
+					}
 				}
 				if ((kingy+1) < BOARDGRIDSIZE){
 					if (logicBoard[x][y].availableMoves[kingx+1][kingy+1]){
@@ -393,6 +613,9 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 			if ((kingx-1) >= 0){
 				if (logicBoard[x][y].availableMoves[kingx-1][kingy]){
 					logicBoard[kingx][kingy].availableMoves[kingx-1][kingy] = false;
+					if (logicBoard[kingx][kingy].firstMove){
+						logicBoard[kingx][kingy].availableMoves[kingx-2][kingy] = false;
+					}
 				}
 				if ((kingy+1) < BOARDGRIDSIZE){
 					if (logicBoard[x][y].availableMoves[kingx-1][kingy+1]){
@@ -418,10 +641,15 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 	}
 }
 
-static void ChessLogic_updateAllPieceMoves(){
+static void ChessLogic_updateAllPieceMoves(void){
+	int whiteKingx, whiteKingy, blackKingx, blackKingy;
+	int kingInCheckx, kingInChecky;
+	int numMovesToEscapeCheck = 0;
+	checkingPieceLocation = -1;
 	whiteCheckFlag = false;
 	blackCheckFlag = false;
-	int whiteKingx, whiteKingy, blackKingx, blackKingy;
+	numberOfChecks = 0;
+	
 	for (int srcy = 0; srcy < BOARDGRIDSIZE; srcy++){
 		for (int srcx = 0; srcx < BOARDGRIDSIZE; srcx++){
 			if (logicBoard[srcx][srcy].pieceType == nopiece) continue;
@@ -439,6 +667,34 @@ static void ChessLogic_updateAllPieceMoves(){
 	}
 	ChessLogic_recalculateKingMoves(whiteKingx, whiteKingy);
 	ChessLogic_recalculateKingMoves(blackKingx, blackKingy);
+
+	// Skip next section if there is no check
+	if (!blackCheckFlag && !whiteCheckFlag){ 
+		return;
+	} else if (blackCheckFlag){
+		kingInCheckLocation = xyCoordinateToInteger(blackKingx, blackKingy);
+		kingInCheckx = blackKingx;
+		kingInChecky = blackKingy;
+	} else if (whiteCheckFlag){
+		kingInCheckLocation = xyCoordinateToInteger(whiteKingx, whiteKingy);
+		kingInCheckx = whiteKingx;
+		kingInChecky = whiteKingy;
+	}
+
+	for (int srcy = 0; srcy < BOARDGRIDSIZE; srcy++){
+		for (int srcx = 0; srcx < BOARDGRIDSIZE; srcx++){
+			if (logicBoard[srcx][srcy].pieceColor == 
+				logicBoard[kingInCheckx][kingInChecky].pieceColor){
+				numMovesToEscapeCheck += ChessLogic_recalculateMovesInCheck(srcx, srcy);
+			}
+		}
+	}
+	// wprintf(L"Number of Moves to Escape Check = %d\n", numMovesToEscapeCheck);
+	if (numMovesToEscapeCheck == 0 && blackCheckFlag){
+		blackCheckMateFlag = true;
+	} else if (numMovesToEscapeCheck == 0 && whiteCheckFlag){
+		whiteCheckMateFlag = true;
+	}
 }
 
 /******************************************************
@@ -462,23 +718,24 @@ int ChessLogic_getCoordinatePieceColor(int x, int y){
 }
 
 int ChessLogic_getChessSquarePieceType(char letter, char number){
-	int x = ChessLogic_getBoardLetterIncrement(letter);
-	int y = ChessLogic_getBoardNumberIncrement(number);
+	int x = getBoardLetterIncrement(letter);
+	int y = getBoardNumberIncrement(number);
 	if (x == -1 || y == -1) return -1;
 	return logicBoard[x][y].pieceType;
 }
 
 int ChessLogic_getChessSquarePieceColor(char letter, char number){
-	int x = ChessLogic_getBoardLetterIncrement(letter);
-	int y = ChessLogic_getBoardNumberIncrement(number);
+	int x = getBoardLetterIncrement(letter);
+	int y = getBoardNumberIncrement(number);
 	if (x == -1 || y == -1) return -1;
 	return logicBoard[x][y].pieceColor;
 }
 
 bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty){
-	int srcx = ChessLogic_getBoardLetterIncrement(srcletter);
-	int srcy = ChessLogic_getBoardNumberIncrement(srcnumber);
+	int srcx = getBoardLetterIncrement(srcletter);
+	int srcy = getBoardNumberIncrement(srcnumber);
 	if (srcx == -1 || srcy == -1) return false;
+	if (logicBoard[srcx][srcy].pieceType == nopiece) return false;
 	return logicBoard[srcx][srcy].availableMoves[dstx][dsty];
 }
 
@@ -492,14 +749,26 @@ int ChessLogic_getCheckStatus(void){
 	return 0;
 }
 
+int ChessLogic_getCheckMateStatus(void){
+	if (whiteCheckMateFlag) return white;
+	if (blackCheckMateFlag) return black;
+	return 0;
+}
+
+bool ChessLogic_getDrawStatus(void){
+	return drawFlag;
+}
+
 /******************************************************
  * Mutator Chess Logic Functions
  ******************************************************/
 int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char dstnumber){
 	int srcx, srcy, dstx, dsty;
+	if (drawIncrement == 0) drawFlag = true;
+	if (whiteCheckMateFlag || blackCheckMateFlag || drawFlag) return -1;
 	
-	srcx = ChessLogic_getBoardLetterIncrement(srcletter);
-	srcy = ChessLogic_getBoardNumberIncrement(srcnumber);
+	srcx = getBoardLetterIncrement(srcletter);
+	srcy = getBoardNumberIncrement(srcnumber);
 
 	// Return -1 if input is incorrect
 	if (srcx == -1 || srcy == -1) return -1;
@@ -510,8 +779,8 @@ int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char ds
 	// Return -1 if user tries to move piece of wrong color
 	if (logicBoard[srcx][srcy].pieceColor != currentTurn) return -1;
 
-	dstx = ChessLogic_getBoardLetterIncrement(dstletter);
-	dsty = ChessLogic_getBoardNumberIncrement(dstnumber);
+	dstx = getBoardLetterIncrement(dstletter);
+	dsty = getBoardNumberIncrement(dstnumber);
 	
 	// Return -1 if input is incorrect
 	if (dstx == -1 || dsty == -1) return -1;
@@ -526,10 +795,14 @@ int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char ds
 		if (!ChessLogic_pawnMoves(srcx, srcy, dstx, dsty)) return -1;
 		ChessLogic_checkPromotePawn(srcx, srcy, dstx, dsty);
 	} else if (!logicBoard[srcx][srcy].availableMoves[dstx][dsty]) return -1;
+	
+	if (logicBoard[srcx][srcy].pieceType == king) {
+		if (!ChessLogic_kingMoves(srcx, srcy, dstx, dsty)) return -1;
+	}
 
 	ChessLogic_processMove(srcx, srcy, dstx, dsty);
 	ChessLogic_incrementIdlePawns();
 	ChessLogic_updateAllPieceMoves();
 	ChessLogic_nextTurn();
- 	return 0;
+	return 0;
 }

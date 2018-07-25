@@ -22,7 +22,8 @@ int ChessLogic_getChessSquarePieceColor(char letter, char number);
 bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty);
 int ChessLogic_getCurrentTurn(void);
 int ChessLogic_getCheckStatus(void);
-//int ChessLogic_getCheckMateStatus(void);
+int ChessLogic_getCheckMateStatus(void);
+bool ChessLogic_getDrawStatus(void);
 
 /******************************************************
  * Mutator Chess Logic Functions

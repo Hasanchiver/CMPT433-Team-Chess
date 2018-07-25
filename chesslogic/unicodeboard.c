@@ -80,7 +80,7 @@ int main(){
 	wprintf(L"Initial Board\n");
     UnicodeBoard_printBoard();
 
-    while (1){
+    while (!ChessLogic_getCheckMateStatus() && !ChessLogic_getDrawStatus()){
     	if (ChessLogic_getCurrentTurn() == white){
     		wprintf(L"Current Turn: %s\n", whitestr);
     	} else {
@@ -92,19 +92,26 @@ int main(){
     		wprintf(L"Black King Check\n");
     	}
 
-	    wprintf(L"Enter a piece (i.e. e7): ");
+	    wprintf(L"Enter a piece (i.e. a2): ");
 	    fgets(srclocation, 8, stdin);
 	    wprintf(L"\n");
 	    wprintf(L"Possible Moves: \n");
 	    UnicodeBoard_printAvailableMoves(srclocation[0], srclocation[1]);
 	    wprintf(L"\n");
 
-	    wprintf(L"Enter a destination (i.e. e7): ");
+	    wprintf(L"Enter a destination (i.e. a3): ");
 	    fgets(dstlocation, 8, stdin);
 	    wprintf(L"\n");
 
 	    output = ChessLogic_movePiece(srclocation[0], srclocation[1], dstlocation[0], dstlocation[1]);
 	    wprintf(L"%c%c to %c%c: %d\n", srclocation[0], srclocation[1], dstlocation[0], dstlocation[1], output);
 	    UnicodeBoard_printBoard();
+	}
+	if (ChessLogic_getDrawStatus()){
+		wprintf(L"Draw!\n");
+	} else if (ChessLogic_getCheckMateStatus() == white){
+		wprintf(L"White King Check Mate--Black Wins!\n");
+	} else if (ChessLogic_getCheckMateStatus() == black){
+		wprintf(L"Black King Check Mate--White Wins!\n");
 	}
 }
