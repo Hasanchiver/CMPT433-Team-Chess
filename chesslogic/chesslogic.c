@@ -763,8 +763,12 @@ bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx,
 	return logicBoard[srcx][srcy].availableMoves[dstx][dsty];
 }
 
-int ChessLogic_getCurrentTurn(void){
+int ChessLogic_getCurrentColorTurn(void){
 	return currentTurn;
+}
+
+int ChessLogic_getTurnCount(void){
+	return turnNumber;
 }
 
 int ChessLogic_getCheckStatus(void){

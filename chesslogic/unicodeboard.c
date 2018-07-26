@@ -81,7 +81,7 @@ int main(){
     UnicodeBoard_printBoard();
 
     while (!ChessLogic_getCheckMateStatus() && !ChessLogic_getDrawStatus()){
-    	if (ChessLogic_getCurrentTurn() == white){
+    	if (ChessLogic_getCurrentColorTurn() == white){
     		wprintf(L"Current Turn: %s\n", whitestr);
     	} else {
     		wprintf(L"Current Turn: %s\n", blackstr);

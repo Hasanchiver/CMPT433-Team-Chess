@@ -23,7 +23,10 @@ bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx,
 
 // returns 1 for white player turn
 // returns 2 for black player turn
-int ChessLogic_getCurrentTurn(void);
+int ChessLogic_getCurrentColorTurn(void);
+
+// returns the number of turns played
+int ChessLogic_getTurnCount(void);
 
 // returns 0 for neither
 // returns 1 for white in check or checkmate
