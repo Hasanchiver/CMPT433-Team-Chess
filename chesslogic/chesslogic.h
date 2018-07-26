@@ -20,10 +20,35 @@ int ChessLogic_getChessSquarePieceType(char letter, char number);
 int ChessLogic_getChessSquarePieceColor(char letter, char number);
 
 bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty);
+
+// returns 1 for white player turn
+// returns 2 for black player turn
 int ChessLogic_getCurrentTurn(void);
+
+// returns 0 for neither
+// returns 1 for white in check or checkmate
+// returns 2 for black in check or checkmate
 int ChessLogic_getCheckStatus(void);
 int ChessLogic_getCheckMateStatus(void);
+
 bool ChessLogic_getDrawStatus(void);
+
+/******************************************************
+ * Functions for StockFish UCI
+ ******************************************************/
+
+// Useful functions for Stockfish UCI
+int ChessLogic_getHalfMoveTimer(void);
+int ChessLogic_getFullMoveTimer(void);
+
+bool ChessLogic_canWhiteKingSide(void);
+bool ChessLogic_canWhiteQueenSide(void);
+bool ChessLogic_canBlackKingSide(void);
+bool ChessLogic_canBlackQueenSide(void);
+
+// example: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR
+// must give at least size 100
+void ChessLogic_getBoardString(char *buffer, int buffersize);
 
 /******************************************************
  * Mutator Chess Logic Functions

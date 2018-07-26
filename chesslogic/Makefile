@@ -1,5 +1,7 @@
 TARGET= unicodeboard
-SOURCES= unicodeboard.c chesslogic.c
+SOURCES= unicodeboard.c chesslogic.c 
+TESTTARGET= test
+TESTSOURCES= test.c chesslogic.c networkAPI.c
 
 PUBDIR = $(HOME)/cmpt433/public/project
 WRKDIR = $(HOME)/cmpt433/work/project
@@ -17,12 +19,16 @@ LFLAGS = -L$(HOME)/cmpt433/public/asound_lib_BBB
 all: 
 	$(C) $(CFLAGS) $(SOURCES) -o $(WRKDIR)/$(TARGET)
 
+test: 
+	$(C) $(CFLAGS) $(TESTSOURCES) -o $(WRKDIR)/$(TESTTARGET)
+
 cross:
 	$(CC_C) $(CFLAGS) $(SOURCES) -o $(OUTDIR)/$(TARGET)
 	#  $(LFLAGS) -lpthread -lasound
 
 clean:
 	rm -f $(OUTDIR)/$(TARGET)
+	rm -f $(WRKDIR)/$(TESTTARGET)
 	rm -f $(WRKDIR)/$(TARGET)
 
 #valgrind --leak-check=full \--show-reachable=yes ./main

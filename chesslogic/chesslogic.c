@@ -2,7 +2,7 @@
 #include "chesslogic.h"
 #include <stdlib.h> // for abs()
 
-#include <wchar.h> // for error checking
+//#include <wchar.h> // for error checking
 
 #define WHITESIDE 0
 #define BLACKSIDE 7
@@ -22,12 +22,19 @@ typedef struct{
 static squareInfo logicBoard[BOARDGRIDSIZE][BOARDGRIDSIZE];
 static Color currentTurn = white;
 
+// flags for Stockfish UCI
+static int fullMoveTimer = 0;
+static bool whiteCanQueenSide = false;
+static bool whiteCanKingSide = false;
+static bool blackCanQueenSide = false;
+static bool blackCanKingSide = false;
+
 static bool blackCheckFlag = false;
 static bool whiteCheckFlag = false;
 static bool blackCheckMateFlag = false;
 static bool whiteCheckMateFlag = false;
 static bool drawFlag = false;
-static int drawIncrement = DRAWTIMER;
+static int halfMoveTimer = 0;
 
 static int numberOfChecks = 0;
 static int checkingPieceLocation = -1;
@@ -36,7 +43,7 @@ static int kingInCheckLocation = -1;
 static bool enPasseFlag = false;
 static bool queensideFlag = false;
 static bool kingsideFlag = false;
-//static int turnNumber = 0;
+static int turnNumber = 1;
 
 static void ChessLogic_initLogicBoard(void){
 	blackCheckFlag = false;
@@ -44,7 +51,8 @@ static void ChessLogic_initLogicBoard(void){
 	blackCheckMateFlag = false;
 	whiteCheckMateFlag = false;
 	drawFlag = false;
-	drawIncrement = DRAWTIMER;
+	halfMoveTimer = 0;
+	fullMoveTimer = 0;
 	for (int y = 0; y < BOARDGRIDSIZE; y++){
 		for (int x = 0; x < BOARDGRIDSIZE; x++){
 			logicBoard[x][y].pieceType = nopiece;
@@ -203,6 +211,7 @@ static bool CheckLogic_isJumpingOverPiece(int srcx, int srcy, int dstx, int dsty
 static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 	int diffx = srcx - dstx;
 	int diffy = srcy - dsty;
+
 	// Can only move one square in any direction (
 	// Move up or down
 	if (diffx == 0 && abs(diffy) == 1) return true;
@@ -219,6 +228,7 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[0][WHITESIDE].pieceType == rook &&
 		logicBoard[0][WHITESIDE].firstMove == true){
 		queensideFlag = true;
+		whiteCanQueenSide = true;
 		return true;
 	}
 	// White kingside
@@ -228,6 +238,7 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType == rook &&
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove == true){
 		kingsideFlag = true;
+		whiteCanKingSide = true;
 		return true;
 	}
 	// Black queenside
@@ -237,6 +248,7 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[0][BLACKSIDE].pieceType == rook &&
 		logicBoard[0][BLACKSIDE].firstMove == true){
 		queensideFlag = true;
+		blackCanQueenSide = true;
 		return true;
 	}
 	// Black kingside
@@ -246,6 +258,7 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType == rook &&
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove == true){
 		kingsideFlag = true;
+		blackCanKingSide = true;
 		return true;
 	}
 	return false;
@@ -354,7 +367,7 @@ static bool ChessLogic_isCheck(int srcx, int srcy, int dstx, int dsty){
 static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == pawn ||
 		logicBoard[dstx][dsty].pieceType != nopiece){
-		drawIncrement = DRAWTIMER;
+		halfMoveTimer = 0;
 	}
 
 	if (logicBoard[srcx][srcy].pieceType == pawn && enPasseFlag == true){
@@ -422,16 +435,24 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	logicBoard[srcx][srcy].firstMove = false;
 	logicBoard[srcx][srcy].idleInSquare = 0;
 
-	drawIncrement -= 1;
+	halfMoveTimer += 1;
 }
 
 static void ChessLogic_nextTurn(){
-	if (currentTurn == white) { currentTurn = black; } 
-	else { currentTurn = white; }
+	if (currentTurn == white) { 
+		currentTurn = black;
+		turnNumber++;
+
+	} 
+	else if (currentTurn == black){ 
+		currentTurn = white;
+		turnNumber++;
+		fullMoveTimer++;
+	}
 }
 
 /******************************************************
- * Calculate possible move for each piece of current color turn
+ * Calculate Possible Moves For Each Piece
  ******************************************************/
 // calculates possible moves to get out of check by removing 
 // possible moves that don't get out of check
@@ -463,7 +484,6 @@ static int ChessLogic_recalculateMovesInCheck(int srcx, int srcy){
 			if (dstx == cpx && dsty == cpy){
 				// Available move can capture the checking piece
 				numOfPossibleMoves++;
-				wprintf(L"capture from piece %d %d\n", dstx, dsty);
 				continue;
 			}
 			dst2cpDiffx = dstx - cpx;
@@ -648,6 +668,10 @@ static void ChessLogic_updateAllPieceMoves(void){
 	checkingPieceLocation = -1;
 	whiteCheckFlag = false;
 	blackCheckFlag = false;
+	whiteCanQueenSide = false;
+	whiteCanKingSide = false;
+	blackCanQueenSide = false;
+	blackCanKingSide = false;
 	numberOfChecks = 0;
 	
 	for (int srcy = 0; srcy < BOARDGRIDSIZE; srcy++){
@@ -760,11 +784,38 @@ bool ChessLogic_getDrawStatus(void){
 }
 
 /******************************************************
+ * Functions for StockFish UCI
+ ******************************************************/
+int ChessLogic_getHalfMoveTimer(void){
+	return halfMoveTimer;
+}
+
+int ChessLogic_getFullMoveTimer(void){
+	return fullMoveTimer;
+}
+
+bool ChessLogic_canWhiteKingSide(void){
+	return whiteCanKingSide;
+}
+
+bool ChessLogic_canWhiteQueenSide(void){
+	return whiteCanQueenSide;
+}
+
+bool ChessLogic_canBlackKingSide(void){
+	return blackCanKingSide;
+}
+
+bool ChessLogic_canBlackQueenSide(void){
+	return blackCanQueenSide;
+}
+
+/******************************************************
  * Mutator Chess Logic Functions
  ******************************************************/
 int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char dstnumber){
 	int srcx, srcy, dstx, dsty;
-	if (drawIncrement == 0) drawFlag = true;
+	if (halfMoveTimer == DRAWTIMER) drawFlag = true;
 	if (whiteCheckMateFlag || blackCheckMateFlag || drawFlag) return -1;
 	
 	srcx = getBoardLetterIncrement(srcletter);
