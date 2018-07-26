@@ -1,6 +1,7 @@
 #include "global.h"
 #include "chesslogic.h"
 #include <stdlib.h> // for abs()
+#include <pthread.h>
 
 //#include <wchar.h> // for error checking
 
@@ -18,6 +19,8 @@ typedef struct{
 	int idleInSquare; // number of turns pawn has stayed in square
 	bool availableMoves[BOARDGRIDSIZE][BOARDGRIDSIZE];
 } squareInfo;
+
+static pthread_mutex_t chessMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static squareInfo logicBoard[BOARDGRIDSIZE][BOARDGRIDSIZE];
 static Color currentTurn = white;
@@ -855,9 +858,11 @@ int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char ds
 		if (!ChessLogic_kingMoves(srcx, srcy, dstx, dsty)) return -1;
 	}
 
+	pthread_mutex_lock(&chessMutex);
 	ChessLogic_processMove(srcx, srcy, dstx, dsty);
 	ChessLogic_incrementIdlePawns();
 	ChessLogic_updateAllPieceMoves();
 	ChessLogic_nextTurn();
+	pthread_mutex_unlock(&chessMutex);
 	return 0;
 }

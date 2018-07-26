@@ -49,10 +49,6 @@ bool ChessLogic_canWhiteQueenSide(void);
 bool ChessLogic_canBlackKingSide(void);
 bool ChessLogic_canBlackQueenSide(void);
 
-// example: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR
-// must give at least size 100
-void ChessLogic_getBoardString(char *buffer, int buffersize);
-
 /******************************************************
  * Mutator Chess Logic Functions
  ******************************************************/
