@@ -2,6 +2,7 @@
 #include "unicodeboard.h" // 
 #include <stdbool.h>
 #include "chesslogic.h"
+#include "udpListener.h"
 #include <stdio.h>
 #include <wchar.h>
 #include <locale.h>
@@ -70,6 +71,7 @@ void UnicodeBoard_printAvailableMoves(char srcletter, char srcnumber){
 }
 
 int main(){
+	UdpListener_startListening();
 	char srclocation[8];
 	char dstlocation[8];
 	char whitestr[20] = "White\0";
@@ -114,4 +116,5 @@ int main(){
 	} else if (ChessLogic_getCheckMateStatus() == black){
 		wprintf(L"Black King Check Mate--White Wins!\n");
 	}
+	UdpListener_cleanup();
 }

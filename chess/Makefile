@@ -1,5 +1,5 @@
 TARGET= chessgame
-SOURCES= unicodeboard.c chesslogic.c
+SOURCES= unicodeboard.c chesslogic.c udpListener.c
 
 PUBDIR = $(HOME)/cmpt433/public/project
 WRKDIR = $(HOME)/cmpt433/work/project
@@ -15,7 +15,7 @@ CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L -Werror -lpthread
 LFLAGS = -L$(HOME)/cmpt433/public/asound_lib_BBB
 
 all: node
-	$(CC_C) $(CFLAGS) $(SOURCES) -o $(OUTDIR)/$(TARGET)
+	$(CC_C) $(CFLAGS) $(SOURCES) -o $(OUTDIR)/$(TARGET) -lpthread
 node:
 	mkdir -p $(PUBDIR)/chess-server-copy/
 	cp -R chess-server/* $(PUBDIR)/chess-server-copy/
@@ -23,7 +23,6 @@ node:
 
 clean:
 	rm -f $(OUTDIR)/$(TARGET)
-	rm -f $(WRKDIR)/$(TESTTARGET)
 	rm -f $(WRKDIR)/$(TARGET)
 
 
