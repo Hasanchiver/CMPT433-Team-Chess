@@ -62,29 +62,29 @@ $(document).ready(function() {
 	
 	//Populate initial board
 	function resetBoard(){
-		grid[0][0].style.backgroundImage="url('images/BlackRook.png')";
-		grid[0][1].style.backgroundImage="url('images/BlackKnight.png')";
-		grid[0][2].style.backgroundImage="url('images/BlackBishop.png')";
-		grid[0][3].style.backgroundImage="url('images/BlackQueen.png')";
-		grid[0][4].style.backgroundImage="url('images/BlackKing.png')";
-		grid[0][5].style.backgroundImage="url('images/BlackBishop.png')";
-		grid[0][6].style.backgroundImage="url('images/BlackKnight.png')";
-		grid[0][7].style.backgroundImage="url('images/BlackRook.png')";
-
+		setUnitAt("BlackRook"  , 0, 0);
+		setUnitAt("BlackKnight", 0, 1);
+		setUnitAt("BlackBishop", 0, 2);
+		setUnitAt("BlackQueen" , 0, 3);
+		setUnitAt("BlackKing"  , 0, 4);
+		setUnitAt("BlackBishop", 0, 5);
+		setUnitAt("BlackKnight", 0, 6);
+		setUnitAt("BlackRook"  , 0, 7);
+		
 		for (var i = 0; i < 8; i++)
 		{
-			grid[1][i].style.backgroundImage="url('images/BlackPawn.png')";
-			grid[6][i].style.backgroundImage="url('images/WhitePawn.png')";
+			setUnitAt("BlackPawn", 1, i);
+			setUnitAt("WhitePawn", 6, i);
 		}
 
-		grid[7][0].style.backgroundImage="url('images/WhiteRook.png')";
-		grid[7][1].style.backgroundImage="url('images/WhiteKnight.png')";
-		grid[7][2].style.backgroundImage="url('images/WhiteBishop.png')";
-		grid[7][3].style.backgroundImage="url('images/WhiteQueen.png')";
-		grid[7][4].style.backgroundImage="url('images/WhiteKing.png')";
-		grid[7][5].style.backgroundImage="url('images/WhiteBishop.png')";
-		grid[7][6].style.backgroundImage="url('images/WhiteKnight.png')";
-		grid[7][7].style.backgroundImage="url('images/WhiteRook.png')";
+		setUnitAt("WhiteRook"  , 7, 0);
+		setUnitAt("WhiteKnight", 7, 1);
+		setUnitAt("WhiteBishop", 7, 2);
+		setUnitAt("WhiteQueen" , 7, 3);
+		setUnitAt("WhiteKing"  , 7, 4);
+		setUnitAt("WhiteBishop", 7, 5);
+		setUnitAt("WhiteKnight", 7, 6);
+		setUnitAt("WhiteRook"  , 7, 7);
 		 
 	}
 
@@ -127,6 +127,7 @@ $(document).ready(function() {
 	{
 		grid[row][col].style.backgroundImage="url('images/" + unit + ".png')";
 	}
+
 	function clearSquareAt(row, col)
 	{
 		grid[row][col].style.backgroundImage="none";
