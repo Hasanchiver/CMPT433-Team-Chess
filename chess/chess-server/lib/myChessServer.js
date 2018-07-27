@@ -20,7 +20,7 @@ function handleCommand(socket) {
 	socket.on('turn', function(data) {
 		executeCommand(socket, "turn", data, "turn-reply");
 	});
-	socket.on('play', function(data) {
+	socket.on('move', function(data) {
 		executeCommand(socket, "move", data, "move-reply");
 	});
 	socket.on('promote', function(data) {

@@ -2,7 +2,7 @@
 // Client-side interactions with the browser for web interface
 
 // Make connection to server when web page is fully loaded.
-//var socket = io.connect();
+var socket = io.connect();
 var volume = 0;
 var tempo = 0;
 var serverErr = null;
@@ -33,6 +33,7 @@ $(document).ready(function() {
 	    table.appendChild(tr);
 	}
 	populateBoard();
+
 	document.body.appendChild(table);
 
 	//Populate initial board
@@ -84,31 +85,8 @@ $(document).ready(function() {
 		changeTurn(message);
 		
 	});
-	socket.on('move-reply', function(message){
+	socket.on('board-reply', function(message){
 		$('#error-box').hide();
-		var res = message.split(" ");
-		var fromRow = Number(res[0]) / 10;
-		var fromCol = Number(res[0]) % 8;
-		var toRow = Number(res[0]) / 10;
-		var toCol = Number(res[0]) % 8;
-		movePiece(grid[fromRow][fromCol], grid[toRow][toCol]);
-	});
-	socket.on('promote-reply', function(message){
-		$('#error-box').hide();
-		var res = message.split(" ");
-		var pawnRow = Number(res[0]) / 10;
-		var pawnCol = Number(res[0]) % 8;
-		var pUnit = res[1];
-		var color;
-		if (pawnRow == 0)
-		{
-			color = "Black";
-		}
-		else if (pawnRow == 7)
-		{
-			color = "White";
-		}
-		promotePawn(grid[pawnRow][pawnCol], pUnit, color);
 	});
 });
 
