@@ -20,11 +20,8 @@ function handleCommand(socket) {
 	socket.on('turn', function(data) {
 		executeCommand(socket, "turn", data, "turn-reply");
 	});
-	socket.on('move', function(data) {
-		executeCommand(socket, "move", data, "move-reply");
-	});
-	socket.on('promote', function(data) {
-		executeCommand(socket, "promote", data, "promote-reply");
+	socket.on('board', function(data) {
+		executeCommand(socket, "board", data, "board-reply");
 	});
 };
 

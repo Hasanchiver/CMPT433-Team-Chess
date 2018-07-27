@@ -1,5 +1,6 @@
 // udpListener.c
 #include "udpListener.h"
+#include "networkAPI.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <netdb.h>
@@ -11,8 +12,8 @@
 #define PORTNUMBER 12345
 #define MAX_MESSAGE_LENGTH 1024
 
-#define COMMAND_MOVE     "move"
-#define COMMAND_PROMOTE  "promote"
+
+#define COMMAND_BOARD    "board"
 #define COMMAND_TURN     "turn"
 
 static pthread_t threadId;
@@ -27,22 +28,17 @@ static _Bool compareCommand(char* msgIn, char* acceptedCommand)
 static void processInMsg(char* msgIn, int socketDescriptor, struct sockaddr_in *sin)
 {
 	msgOut[0] = 0;
-	int feedback = -1;
+
+	//char* str = (char*) malloc(200*sizeof(char));
 	if (compareCommand(msgIn,COMMAND_TURN))
 	{
-		feedback = 3;
-		sprintf(msgOut, "%d\n", feedback);
-		 //feedback = ChessGame_getTurnNumber();
+		NetworkAPI_getBoardString(msgOut,MAX_MESSAGE_LENGTH );
 	}
-	else if(compareCommand(msgIn,COMMAND_MOVE))
+	else if(compareCommand(msgIn,COMMAND_BOARD))
 	{
-		sprintf(msgOut,"25 50 \n"); //feedback = ChessGame_getCurrentMove();
+		sprintf(msgOut, "fuck this shit");
+		NetworkAPI_getBoardString(msgOut,MAX_MESSAGE_LENGTH ); 
 	}
-	else if(compareCommand(msgIn,COMMAND_PROMOTE))
-	{
-		sprintf(msgOut,"hello \n"); //feedback = ChessGame_getPromotionAtTurn(number);
-	}
-	
 }
 
 static void *startUdp(void *args)
