@@ -26,3 +26,6 @@
 
 # Debug files
 *.dSYM/
+
+# Node Folder
+node_modules
