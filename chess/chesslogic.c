@@ -263,28 +263,24 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 	if (diffy == 0 && diffx == 2 && !whiteCheckFlag && whiteCanQueenSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
-		whiteHasQueenSide = true;
 		return true;
 	}
 	// White kingside (can't capture when castling)
 	if (diffy == 0 && diffx == -2 && !whiteCheckFlag && whiteCanKingSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
-		whiteHasKingSide = true;
 		return true;
 	}
 	// Black queenside (can't capture when castling)
 	if (diffy == 0 && diffx == 2 && !blackCheckFlag && blackCanQueenSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
-		blackHasQueenSide = true;
 		return true;
 	}
 	// Black kingside (can't capture when castling)
 	if (diffy == 0 && diffx == -2 && !blackCheckFlag && blackCanKingSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
-		blackHasKingSide = true;
 		return true;
 	}
 	return false;
@@ -412,6 +408,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == white && 
 		queensideFlag == true){
+		whiteHasQueenSide = true;
 		logicBoard[0][WHITESIDE].pieceType = nopiece;
 		logicBoard[0][WHITESIDE].pieceColor = nocolor;
 		logicBoard[0][WHITESIDE].firstMove = false;
@@ -422,6 +419,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == white && 
 		kingsideFlag == true){
+		whiteHasKingSide = true;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType = nopiece;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceColor = nocolor;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove = false;
@@ -433,6 +431,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == black && 
 		queensideFlag == true){
+		blackHasQueenSide = true;
 		logicBoard[0][BLACKSIDE].pieceType = nopiece;
 		logicBoard[0][BLACKSIDE].pieceColor = nocolor;
 		logicBoard[0][BLACKSIDE].firstMove = false;
@@ -443,6 +442,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == black && 
 		kingsideFlag == true){
+		blackHasKingSide = true;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType = nopiece;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceColor = nocolor;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove = false;
@@ -765,10 +765,6 @@ static void ChessLogic_updateAllPieceMoves(void){
 	checkingPieceLocation = -1;
 	whiteCheckFlag = false;
 	blackCheckFlag = false;
-	whiteCanQueenSide = false;
-	whiteCanKingSide = false;
-	blackCanQueenSide = false;
-	blackCanKingSide = false;
 	numberOfChecks = 0;
 	
 	for (int srcy = 0; srcy < BOARDGRIDSIZE; srcy++){
@@ -981,42 +977,42 @@ bool ChessLogic_getDrawStatus(void){
  ******************************************************/
 bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo){
 	if (whiteHasKingSide){
-		pieceInfo.srcx = BOARDGRIDSIZE-1;
-		pieceInfo.srcy = WHITESIDE;
-		pieceInfo.dstx = BOARDGRIDSIZE-1-2;
-		pieceInfo.dsty = 0;
-		pieceInfo.type = rook;
-		pieceInfo.color = white;
+		pieceInfo->srcx = BOARDGRIDSIZE-1;
+		pieceInfo->srcy = WHITESIDE;
+		pieceInfo->dstx = BOARDGRIDSIZE-1-2;
+		pieceInfo->dsty = 0;
+		pieceInfo->type = rook;
+		pieceInfo->color = white;
 		whiteHasKingSide = false;
 		return true;
 	} 
 	if (whiteHasQueenSide){
-		pieceInfo.srcx = 0;
-		pieceInfo.srcy = WHITESIDE;
-		pieceInfo.dstx = 3;
-		pieceInfo.dsty = WHITESIDE;
-		pieceInfo.type = rook;
-		pieceInfo.color = white;
+		pieceInfo->srcx = 0;
+		pieceInfo->srcy = WHITESIDE;
+		pieceInfo->dstx = 3;
+		pieceInfo->dsty = WHITESIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = white;
 		whiteHasQueenSide = false;
 		return true;
 	} 
 	if (blackHasKingSide){
-		pieceInfo.srcx = BOARDGRIDSIZE-1;
-		pieceInfo.srcy = BLACKSIDE;
-		pieceInfo.dstx = BOARDGRIDSIZE-1-2;
-		pieceInfo.dsty = BLACKSIDE;
-		pieceInfo.type = rook;
-		pieceInfo.color = black;
+		pieceInfo->srcx = BOARDGRIDSIZE-1;
+		pieceInfo->srcy = BLACKSIDE;
+		pieceInfo->dstx = BOARDGRIDSIZE-1-2;
+		pieceInfo->dsty = BLACKSIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = black;
 		blackHasKingSide = false;
 		return true;
 	}
 	if (blackHasQueenSide){
-		pieceInfo.srcx = 0;
-		pieceInfo.srcy = BLACKSIDE;
-		pieceInfo.dstx = 3;
-		pieceInfo.dsty = BLACKSIDE;
-		pieceInfo.type = rook;
-		pieceInfo.color = black;
+		pieceInfo->srcx = 0;
+		pieceInfo->srcy = BLACKSIDE;
+		pieceInfo->dstx = 3;
+		pieceInfo->dsty = BLACKSIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = black;
 		blackHasQueenSide = false;
 		return true;
 	}
