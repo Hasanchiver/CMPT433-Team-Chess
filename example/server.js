@@ -11,7 +11,7 @@ var http = require("http"),
 function get_mime(filename)
 {
     var ext = path.extname(filename);
-    
+
     if (ext === ".html" || ext === ".htm") {
         return "text/html";
     } else if (ext === ".css") {
@@ -44,14 +44,14 @@ function get_mime(filename)
 }
 
 /// Start the server.
-http.createServer(function (request, response)
+var server = http.createServer(function (request, response)
 {
     var cwd = process.cwd(),
         filename,
         uri = url.parse(request.url).pathname;
-    
+
     filename = path.join(cwd, uri);
-    
+
     /// Make sure the URI is valid and withing the current working directory.
     if (uri.indexOf("/../") !== -1 || uri[0] !== "/" || path.relative(cwd, filename).substr(0, 3) === "../") {
         response.writeHead(404, {"Content-Type": "text/plain"});
@@ -59,7 +59,7 @@ http.createServer(function (request, response)
         response.end();
         return;
     }
-    
+
     fs.exists(filename, function (exists)
     {
         /// If the URI does not exist, display a 404 error.
@@ -69,16 +69,16 @@ http.createServer(function (request, response)
             response.end();
             return;
         }
-        
+
         /// If the URI is a directory, try to load index.html.
         if (fs.statSync(filename).isDirectory()) {
             filename += "/index.html";
         }
-        
+
         fs.readFile(filename, "binary", function (err, file)
         {
             var mime;
-            
+
             /// If the file cannot be loaded, display a 500 error.
             if (err) {
                 response.writeHead(500, {"Content-Type": "text/plain"});
@@ -86,9 +86,9 @@ http.createServer(function (request, response)
                 response.end();
                 return;
             }
-            
+
             mime = get_mime(filename);
-            
+
             /// If the file loads correctly, write it to the client.
             response.writeHead(200, mime ? {"Content-Type": mime} : undefined);
             response.write(file, "binary");
@@ -96,5 +96,11 @@ http.createServer(function (request, response)
         });
     });
 }).listen(parseInt(port, 10));
+
+/*
+ * Create the Userver to listen for the websocket
+ */
+var udpServer = require('./SFserver');
+udpServer.listen(server);
 
 console.log("Static file server running at\n  => http://localhost:" + port + "/\nCTRL + C to shutdown");
