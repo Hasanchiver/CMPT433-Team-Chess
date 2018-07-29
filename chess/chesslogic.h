@@ -12,17 +12,20 @@ void ChessLogic_startNewGame(void);
 // x range: 0-7
 // y range: 0-7
 // returns -1 if not in range
-int ChessLogic_getCoordinatePieceType(int x, int y);
-int ChessLogic_getCoordinatePieceColor(int x, int y);
+int ChessLogic_getChessSquarePieceType(int srcx, int srcy);
+int ChessLogic_getChessSquarePieceColor(int srcx, int srcy);
 
 // letter range: a, b, c, d, e, f, g, h (must use BoardLetter enum)
 // number range: 1, 2, 3, 4, 5, 6, 7, 8
 // returns -1 if not in range
-int ChessLogic_getChessSquarePieceType(int srcx, int srcy);
-int ChessLogic_getChessSquarePieceColor(int srcx, int srcy);
-void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy);
+int ChessLogic_getChessSquarePieceTypeChar(char letter, char number);
+int ChessLogic_getChessSquarePieceColorChar(char letter, char number);
+
+// returns true if a piece at (srcx, srcy) can move to (dstx, dsty)
 bool ChessLogic_getPieceAvailableMoves(int srcx, int srcy, int dstx, int dsty);
-void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy);
+
+// similar to ChessLogic_getPieceAvailableMoves but can take i.e."e3 e4" as input
+bool ChessLogic_getPieceAvailableMovesChar(char srcletter, char srcnumber, int dstx, int dsty);
 
 // returns 1 for white player turn
 // returns 2 for black player turn
@@ -32,9 +35,13 @@ int ChessLogic_getCurrentColorTurn(void);
 int ChessLogic_getTurnCount(void);
 
 // returns 0 for neither
-// returns 1 for white in check or checkmate
-// returns 2 for black in check or checkmate
+// returns 1 for white in check
+// returns 2 for black in check
 int ChessLogic_getCheckStatus(void);
+
+// returns 0 for neither
+// returns 1 for white checkmate (Black Wins)
+// returns 2 for black checkmate (White Wins)
 int ChessLogic_getCheckMateStatus(void);	//non-zero game over, zero, continue
 
 bool ChessLogic_getDrawStatus(void);
@@ -42,7 +49,14 @@ bool ChessLogic_getDrawStatus(void);
 /******************************************************
  * Functions for LCD
  ******************************************************/
+// updates an 8 by 8 2d array with all the possible moves of a piece
+void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy);
+
+// updates the struct input with information of the piece at (srcx, srcy)
+void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy);
+
 bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo);
+bool ChessLogic_enPassantTriggered(piecePosUpdate *pieceInfo);
 
 /******************************************************
  * Functions for StockFish UCI
@@ -64,5 +78,6 @@ bool ChessLogic_canBlackQueenSide(void);
 // returns 0 if successful
 // returns -1 if move is not applicable
 int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty);
+int ChessLogic_movePieceChar(char srcletter, char srcnumber, char dstletter, char dstnumber);
 
 #endif

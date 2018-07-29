@@ -24,11 +24,14 @@ static bool whiteCanKingSide = false;
 static bool blackCanQueenSide = false;
 static bool blackCanKingSide = false;
 
-// flags for the LCD
+// flags and variables for the LCD
 static bool whiteHasQueenSide = false;
 static bool whiteHasKingSide = false;
 static bool blackHasQueenSide = false;
 static bool blackHasKingSide = false;
+static bool pawnHasEnPassant = false;
+static int enPassant_dstx = 0;
+static int enPassant_dsty = 0;
 
 static bool blackCheckFlag = false;
 static bool whiteCheckFlag = false;
@@ -59,6 +62,7 @@ static void ChessLogic_initLogicBoard(void){
 			logicBoard[x][y].pieceType = nopiece;
 			logicBoard[x][y].pieceColor = nocolor;
 			logicBoard[x][y].firstMove = true;
+			logicBoard[x][y].doubleStep = false;
 			logicBoard[x][y].idleInSquare = 0;
 		}
 	}
@@ -356,7 +360,8 @@ static bool ChessLogic_pawnMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[srcx][srcy].pieceColor == white &&
 		logicBoard[dstx][dsty-1].pieceType == pawn &&
 		logicBoard[dstx][dsty-1].pieceColor == black &&
-		logicBoard[dstx][dsty-1].idleInSquare == 1){
+		logicBoard[dstx][dsty-1].idleInSquare == 1 &&
+		logicBoard[dstx][dsty-1].doubleStep == true){
 		enPasseFlag = true;
 		return true;
 	}
@@ -364,7 +369,8 @@ static bool ChessLogic_pawnMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[srcx][srcy].pieceColor == black &&
 		logicBoard[dstx][dsty+1].pieceType == pawn &&
 		logicBoard[dstx][dsty+1].pieceColor == white &&
-		logicBoard[dstx][dsty+1].idleInSquare == 1) {
+		logicBoard[dstx][dsty+1].idleInSquare == 1 &&
+		logicBoard[dstx][dsty+1].doubleStep == true) {
 		enPasseFlag = true;
 		return true;
 	}
@@ -387,9 +393,14 @@ static bool ChessLogic_isCheck(int srcx, int srcy, int dstx, int dsty){
 }
 
 static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
+	int diffy = abs(srcy - dsty);
 	if (logicBoard[srcx][srcy].pieceType == pawn ||
 		logicBoard[dstx][dsty].pieceType != nopiece){
 		halfMoveTimer = 0;
+	}
+
+	if (logicBoard[srcx][srcy].pieceType == pawn && diffy == 2){
+		logicBoard[dstx][dsty].doubleStep = true;
 	}
 
 	if (logicBoard[srcx][srcy].pieceType == pawn && enPasseFlag == true){
@@ -397,11 +408,17 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 			logicBoard[dstx][dsty-1].pieceType = nopiece;
 			logicBoard[dstx][dsty-1].pieceColor = nocolor;
 			logicBoard[dstx][dsty-1].idleInSquare = 0;
+			pawnHasEnPassant = true;
+			enPassant_dstx = dstx;
+			enPassant_dsty = dsty-1;
 		}
 		if (logicBoard[dstx][dsty+1].pieceColor == white){
 			logicBoard[dstx][dsty+1].pieceType = nopiece;
 			logicBoard[dstx][dsty+1].pieceColor = nocolor;
 			logicBoard[dstx][dsty+1].idleInSquare = 0;
+			pawnHasEnPassant = true;
+			enPassant_dstx = dstx;
+			enPassant_dsty = dsty+1;
 		}
 	}
 
@@ -460,6 +477,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	logicBoard[srcx][srcy].pieceColor = nocolor;
 	logicBoard[srcx][srcy].firstMove = false;
 	logicBoard[srcx][srcy].idleInSquare = 0;
+	logicBoard[srcx][srcy].doubleStep = false;
 
 	halfMoveTimer += 1;
 }
@@ -824,7 +842,7 @@ void ChessLogic_startNewGame(void){
 	pthread_mutex_unlock(&chessMutex);
 }
 
-int ChessLogic_getCoordinatePieceType(int x, int y){
+/*int ChessLogic_getCoordinatePieceType(int x, int y){
 	pthread_mutex_lock(&chessMutex);
 	pthread_mutex_unlock(&chessMutex);
 	if (x < 0 || x >= BOARDGRIDSIZE ||
@@ -838,36 +856,40 @@ int ChessLogic_getCoordinatePieceColor(int x, int y){
 	if (x < 0 || x >= BOARDGRIDSIZE ||
 		y < 0 || y >= BOARDGRIDSIZE) return -1;
 	return logicBoard[x][y].pieceColor;
-}
+}*/
 
 int ChessLogic_getChessSquarePieceType(int x, int y){
 	pthread_mutex_lock(&chessMutex);
 	pthread_mutex_unlock(&chessMutex);
-	//int x = getBoardLetterIncrement(letter);
-	//int y = getBoardNumberIncrement(number);
-	if (x == -1 || y == -1) return -1;
+	if (x < 0 || x >= BOARDGRIDSIZE ||
+		y < 0 || y >= BOARDGRIDSIZE) return -1;
 	return logicBoard[x][y].pieceType;
 }
 
 int ChessLogic_getChessSquarePieceColor(int x, int y){
 	pthread_mutex_lock(&chessMutex);
 	pthread_mutex_unlock(&chessMutex);
-	//int x = getBoardLetterIncrement(letter);
-	//int y = getBoardNumberIncrement(number);
-	if (x == -1 || y == -1) return -1;
+	if (x < 0 || x >= BOARDGRIDSIZE ||
+		y < 0 || y >= BOARDGRIDSIZE) return -1;
 	return logicBoard[x][y].pieceColor;
 }
 
-void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy){
-	for (int y = 0; y < BOARDGRIDSIZE; y++){
-		for (int x = 0; x < BOARDGRIDSIZE; x++){
-			if(ChessLogic_getPieceAvailableMoves(srcx, srcy, x, y)){
-				possibleMoves[x][y] = 1;
-			} else {
-				possibleMoves[x][y] = 0;
-			}
-		}
-	}
+int ChessLogic_getChessSquarePieceTypeChar(char letter, char number){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	int x = getBoardLetterIncrement(letter);
+	int y = getBoardNumberIncrement(number);
+	if (x == -1 || y == -1) return -1;
+	return ChessLogic_getChessSquarePieceType(x,y);
+}
+
+int ChessLogic_getChessSquarePieceColorChar(char letter, char number){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	int x = getBoardLetterIncrement(letter);
+	int y = getBoardNumberIncrement(number);
+	if (x == -1 || y == -1) return -1;
+	return ChessLogic_getChessSquarePieceColor(x,y);
 }
 
 bool ChessLogic_getPieceAvailableMoves(int srcx, int srcy, int dstx, int dsty){
@@ -879,64 +901,13 @@ bool ChessLogic_getPieceAvailableMoves(int srcx, int srcy, int dstx, int dsty){
 	return logicBoard[srcx][srcy].availableMoves[dstx][dsty];
 }
 
-void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
-
-	piece->pieceType = nopiece;
-	piece->pieceColor = nocolor;
-
-	//printf("%d\n", piece.pieceType);
-
-	//printf("%d %d\n", srcx, srcy);
-	int tmp = 0;
-
-	for(int i = BOARDGRIDSIZE-1; i >= 0; --i){
-		for(int j = 0; j < 8; ++j){
-
-			printf("%d\t", logicBoard[j][i].pieceType);
-
-
-		}
-		printf("\n");
-	}
-	printf("\n");
-
-
-
-
-	printf("say something\n");
-
-
-
-
-	printf("%d %d %d\n", srcx, srcy, logicBoard[srcx][srcy].pieceType);
-
-	if (logicBoard[srcx][srcy].pieceType != nopiece){
-
-		piece->pieceType = logicBoard[srcx][srcy].pieceType;
-		piece->pieceColor = logicBoard[srcx][srcy].pieceColor;
-
-		/*printf("%d %d\n", logicBoard[srcx][srcy].pieceType, 
-			logicBoard[srcx][srcy].pieceColor);*/
-
-	}else{
-		printf("Get type nopiece\n");
-		exit(-1);
-	}
-
-
-
-}
-
-/*bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty){
+bool ChessLogic_getPieceAvailableMovesChar(char srcletter, char srcnumber, int dstx, int dsty){
 	pthread_mutex_lock(&chessMutex);
 	pthread_mutex_unlock(&chessMutex);
 	int srcx = getBoardLetterIncrement(srcletter);
 	int srcy = getBoardNumberIncrement(srcnumber);
-	if (srcx == -1 || srcy == -1) return false;
-	if (logicBoard[srcx][srcy].pieceType == nopiece) return false;
-	if (logicBoard[srcx][srcy].pieceColor != currentTurn) return false;
-	return logicBoard[srcx][srcy].availableMoves[dstx][dsty];
-}*/
+	return ChessLogic_getPieceAvailableMoves(srcx, srcy, dstx, dsty);
+}
 
 int ChessLogic_getCurrentColorTurn(void){
 	pthread_mutex_lock(&chessMutex);
@@ -975,12 +946,67 @@ bool ChessLogic_getDrawStatus(void){
 /******************************************************
  * Functions for LCD
  ******************************************************/
+void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	for (int y = 0; y < BOARDGRIDSIZE; y++){
+		for (int x = 0; x < BOARDGRIDSIZE; x++){
+			if(ChessLogic_getPieceAvailableMoves(srcx, srcy, x, y)){
+				possibleMoves[x][y] = 1;
+			} else {
+				possibleMoves[x][y] = 0;
+			}
+		}
+	}
+}
+
+void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	piece->pieceType = nopiece;
+	piece->pieceColor = nocolor;
+
+	//printf("%d\n", piece.pieceType);
+
+	//printf("%d %d\n", srcx, srcy);
+	int tmp = 0;
+
+	for(int i = BOARDGRIDSIZE-1; i >= 0; --i){
+		for(int j = 0; j < 8; ++j){
+
+			printf("%d\t", logicBoard[j][i].pieceType);
+
+		}
+		printf("\n");
+	}
+	printf("\n");
+
+	printf("say something\n");
+
+	printf("%d %d %d\n", srcx, srcy, logicBoard[srcx][srcy].pieceType);
+
+	if (logicBoard[srcx][srcy].pieceType != nopiece){
+
+		piece->pieceType = logicBoard[srcx][srcy].pieceType;
+		piece->pieceColor = logicBoard[srcx][srcy].pieceColor;
+
+		/*printf("%d %d\n", logicBoard[srcx][srcy].pieceType, 
+			logicBoard[srcx][srcy].pieceColor);*/
+
+	}else{
+		printf("Get type nopiece\n");
+		exit(-1);
+	}
+}
+
 bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (whiteHasKingSide){
 		pieceInfo->srcx = BOARDGRIDSIZE-1;
 		pieceInfo->srcy = WHITESIDE;
 		pieceInfo->dstx = BOARDGRIDSIZE-1-2;
-		pieceInfo->dsty = 0;
+		pieceInfo->dsty = WHITESIDE;
 		pieceInfo->type = rook;
 		pieceInfo->color = white;
 		whiteHasKingSide = false;
@@ -1014,6 +1040,22 @@ bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo){
 		pieceInfo->type = rook;
 		pieceInfo->color = black;
 		blackHasQueenSide = false;
+		return true;
+	}
+	return false;
+}
+
+bool ChessLogic_enPassantTriggered(piecePosUpdate *pieceInfo){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	if (pawnHasEnPassant){
+		pieceInfo->srcx = enPassant_dstx;
+		pieceInfo->srcy = enPassant_dsty;
+		pieceInfo->dstx = enPassant_dstx;
+		pieceInfo->dsty = enPassant_dsty;
+		pieceInfo->type = pawn;
+		pieceInfo->color = nocolor;
+		pawnHasEnPassant = false;
 		return true;
 	}
 	return false;
@@ -1062,12 +1104,8 @@ bool ChessLogic_canBlackQueenSide(void){
  * Mutator Chess Logic Functions
  ******************************************************/
 int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty){
-	//int srcx, srcy, dstx, dsty;
 	if (halfMoveTimer == DRAWTIMER) drawFlag = true;
 	if (whiteCheckMateFlag || blackCheckMateFlag || drawFlag) return -1;
-	
-	//srcx = getBoardLetterIncrement(srcletter);
-	//srcy = getBoardNumberIncrement(srcnumber);
 
 	// Return -1 if input is incorrect
 	if (srcx == -1 || srcy == -1) return -1;
@@ -1077,9 +1115,6 @@ int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty){
 
 	// Return -1 if user tries to move piece of wrong color
 	if (logicBoard[srcx][srcy].pieceColor != currentTurn) return -1;
-
-	//dstx = getBoardLetterIncrement(dstletter);
-	//dsty = getBoardNumberIncrement(dstnumber);
 	
 	// Return -1 if input is incorrect
 	if (dstx == -1 || dsty == -1) return -1;
@@ -1106,4 +1141,14 @@ int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty){
 	ChessLogic_nextTurn();
 	pthread_mutex_unlock(&chessMutex);
 	return 0;
+}
+
+int ChessLogic_movePieceChar(char srcletter, char srcnumber, char dstletter, char dstnumber){
+	int srcx, srcy, dstx, dsty;
+	srcx = getBoardLetterIncrement(srcletter);
+	srcy = getBoardNumberIncrement(srcnumber);
+	dstx = getBoardLetterIncrement(dstletter);
+	dsty = getBoardNumberIncrement(dstnumber);
+	
+	return ChessLogic_movePiece(srcx, srcy, dstx, dsty);
 }
