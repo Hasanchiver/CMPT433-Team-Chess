@@ -1,34 +1,33 @@
-TARGET= unicodeboard
-SOURCES= unicodeboard.c chesslogic.c 
-TESTTARGET= test
-TESTSOURCES= test.c chesslogic.c networkAPI.c
 
-PUBDIR = $(HOME)/cmpt433/public/project
-WRKDIR = $(HOME)/cmpt433/work/project/chesslogic
-OUTDIR = $(PUBDIR)
-NODEPATH = $(PUBDIR)/beatbox-server-copy
-CROSS_TOOL = arm-linux-gnueabihf-
-CC_CPP = $(CROSS_TOOL)g++
-CC_C = $(CROSS_TOOL)gcc
-CPP = g++
-C = gcc
+# Makefile for building and debuging chess program
+# Author: Joe --- TeamChess
 
-CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L -Werror -lpthread
-LFLAGS = -L$(HOME)/cmpt433/public/asound_lib_BBB
+DEPOLY_TARGET = chessProgram
+DEBUGGING_TARGET = test
+
+SOURCES= main.c spi.c lcd.c gpio.c unicodeboard.c chesslogic.c 
+DEBUG_SOURCE= test.c
+
+DEPLOY_DIR = $(HOME)/Documents/Courses/2018-summer/cmpt-433/workspace/public/chess
+
+CC_C = arm-linux-gnueabihf-gcc
+
+
+CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L #-Werror
+
+
 
 all: 
-	$(C) $(CFLAGS) $(SOURCES) -o $(WRKDIR)/$(TARGET)
+	$(CC_C) $(CFLAGS) $(SOURCES) -o $(DEPLOY_DIR)/$(DEPOLY_TARGET) -lpthread -lm
+	
+test:
+	$(CC_C) $(CFLAGS) $(DEBUG_SOURCE) -o $(DEPLOY_DIR)/$(DEBUGGING_TARGET) -lpthread -lm
 
-test: 
-	$(C) $(CFLAGS) $(TESTSOURCES) -o $(WRKDIR)/$(TESTTARGET)
+cpptest:
+	arm-linux-gnueabihf-gcc $(CFLAGS) test.cpp BusDevice.cpp -o $(DEPLOY_DIR)/cpptest -lpthread -lm
 
-cross:
-	$(CC_C) $(CFLAGS) $(SOURCES) -o $(OUTDIR)/$(TARGET)
-	#  $(LFLAGS) -lpthread -lasound
+
 
 clean:
-	rm -f $(OUTDIR)/$(TARGET)
-	rm -f $(WRKDIR)/$(TESTTARGET)
-	rm -f $(WRKDIR)/$(TARGET)
-
-#valgrind --leak-check=full \--show-reachable=yes ./main
+	rm -f $(DEPLOY_DIR)/$(DEPOLY_TARGET)
+	rm -f $(DEPLOY_DIR)/$(DEBUGGING_TARGET)
