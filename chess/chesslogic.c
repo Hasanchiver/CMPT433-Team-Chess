@@ -2,7 +2,6 @@
 #include "chesslogic.h"
 #include <stdlib.h> // for abs()
 #include <pthread.h>
-#include <stdio.h>
 
 //#include <wchar.h> // for error checking
 
@@ -37,6 +36,7 @@ static bool blackCheckFlag = false;
 static bool whiteCheckFlag = false;
 static bool blackCheckMateFlag = false;
 static bool whiteCheckMateFlag = false;
+
 static bool drawFlag = false;
 static int halfMoveTimer = 0;
 
@@ -66,8 +66,6 @@ static void ChessLogic_initLogicBoard(void){
 			logicBoard[x][y].idleInSquare = 0;
 		}
 	}
-
-
 	
 	// setup pawn pieces
 	for (int x = 0; x < BOARDGRIDSIZE; x++){
@@ -77,8 +75,6 @@ static void ChessLogic_initLogicBoard(void){
 		logicBoard[x][BOARDGRIDSIZE-2].pieceType = pawn;
 		logicBoard[x][BOARDGRIDSIZE-2].pieceColor = black;
 	}
-	
-
 
 	// setup rook, knight and bishop pieces
 	for (int x = 0; x < (BOARDGRIDSIZE/2)-1; x++){
@@ -267,24 +263,28 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 	if (diffy == 0 && diffx == 2 && !whiteCheckFlag && whiteCanQueenSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
+		//whiteHasQueenSide = true;
 		return true;
 	}
 	// White kingside (can't capture when castling)
 	if (diffy == 0 && diffx == -2 && !whiteCheckFlag && whiteCanKingSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
+		//whiteHasKingSide = true;
 		return true;
 	}
 	// Black queenside (can't capture when castling)
 	if (diffy == 0 && diffx == 2 && !blackCheckFlag && blackCanQueenSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
+		//blackHasQueenSide = true;
 		return true;
 	}
 	// Black kingside (can't capture when castling)
 	if (diffy == 0 && diffx == -2 && !blackCheckFlag && blackCanKingSide &&
 		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
+		//blackHasKingSide = true;
 		return true;
 	}
 	return false;
@@ -592,10 +592,6 @@ static void ChessLogic_calculateMoves(int srcx, int srcy){
 				logicBoard[srcx][srcy].availableMoves[dstx][dsty] = true;
 				queensideFlag = false;
 				kingsideFlag = false;
-				whiteHasQueenSide = false;
-				whiteHasKingSide = false;
-				blackHasQueenSide = false;
-				blackHasKingSide = false;
 			} else if (currentPiece == queen){
 				if (!ChessLogic_queenMoves(srcx, srcy, dstx, dsty)) continue;
 				if (ChessLogic_isCheck(srcx, srcy, dstx, dsty)) continue;
@@ -960,6 +956,27 @@ void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDS
 	}
 }
 
+void ChessLogic_getBoardStateGrid(squareInfo boardStateGrid[BOARDGRIDSIZE][BOARDGRIDSIZE]){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	for (int y = 0; y < BOARDGRIDSIZE; y++){
+		for (int x = 0; x < BOARDGRIDSIZE; x++){
+			if (logicBoard[x][y].pieceType == nopiece){
+				boardStateGrid[x][y].pieceType = nopiece;
+				boardStateGrid[x][y].pieceColor = nocolor;
+				boardStateGrid[x][y].firstMove = true;
+				boardStateGrid[x][y].doubleStep = false;
+				boardStateGrid[x][y].idleInSquare = 0;
+			}
+			boardStateGrid[x][y].pieceType = logicBoard[x][y].pieceType;
+			boardStateGrid[x][y].pieceColor = logicBoard[x][y].pieceColor;
+			boardStateGrid[x][y].firstMove = true;
+			boardStateGrid[x][y].doubleStep = false;
+			boardStateGrid[x][y].idleInSquare = 0;
+		}
+	}
+}
+
 void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
 	pthread_mutex_lock(&chessMutex);
 	pthread_mutex_unlock(&chessMutex);
@@ -969,7 +986,7 @@ void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
 	//printf("%d\n", piece.pieceType);
 
 	//printf("%d %d\n", srcx, srcy);
-	int tmp = 0;
+	/*int tmp = 0;
 
 	for(int i = BOARDGRIDSIZE-1; i >= 0; --i){
 		for(int j = 0; j < 8; ++j){
@@ -984,7 +1001,7 @@ void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
 	printf("say something\n");
 
 	printf("%d %d %d\n", srcx, srcy, logicBoard[srcx][srcy].pieceType);
-
+	*/
 	if (logicBoard[srcx][srcy].pieceType != nopiece){
 
 		piece->pieceType = logicBoard[srcx][srcy].pieceType;
@@ -993,10 +1010,11 @@ void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
 		/*printf("%d %d\n", logicBoard[srcx][srcy].pieceType, 
 			logicBoard[srcx][srcy].pieceColor);*/
 
-	}else{
+	}
+	/*else{
 		printf("Get type nopiece\n");
 		exit(-1);
-	}
+	}*/
 }
 
 bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo){

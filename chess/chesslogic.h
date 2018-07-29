@@ -52,6 +52,9 @@ bool ChessLogic_getDrawStatus(void);
 // updates an 8 by 8 2d array with all the possible moves of a piece
 void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy);
 
+// updates an 8 by 8 2d array with the current state of the board
+void ChessLogic_getBoardStateGrid(squareInfo boardStateGrid[BOARDGRIDSIZE][BOARDGRIDSIZE]);
+
 // updates the struct input with information of the piece at (srcx, srcy)
 void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy);
 
