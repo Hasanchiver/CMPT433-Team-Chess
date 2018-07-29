@@ -1,7 +1,4 @@
-var socket = io.connect();
-var volume = 0;
-var tempo = 0;
-var serverErr = null;
+
 var currentmove = "";
 var lastmove = "";
 function engineGame(options) {

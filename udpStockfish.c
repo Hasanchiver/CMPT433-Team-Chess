@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 #define MOVE "move"
-#define BOARD "board"
+#define USERMOVED "usermoved"
 
 #define PORTNUMBER 54321
 #define MAX_MESSAGE_LENGTH 1024
@@ -17,6 +17,8 @@ static pthread_t threadId;
 static char msgOut[MAX_MESSAGE_LENGTH];
 static _Bool stopUdp = false;
 static _Bool lastmove = false;
+static _Bool stockfishMoved = false;
+char* stockfishMove = "move e2 e4";
 
 _Bool userCommandStop() {
 	return stopUdp;
@@ -31,16 +33,26 @@ static _Bool compareCommand(char* msgIn, char* acceptedCommand) {
 }
 
 void setLastMoveToTrue(){
-
+	lastmove = true;
 }
+
+void setStockfishMovedToFalse(){
+	stockfishMoved = false;
+}
+
+// void setLastMoveToTrue(){
+// 	lastmove = true;
+// }
+
 
 static void processInMsg(char* msgIn, int socketDescriptor,
 		struct sockaddr_in *sin) {
 	msgOut[0] = 0;
 	//int number = getIndexFromString(msgIn);
 	//int feedback = -1;
-	if (compareCommand(msgIn, MOVE)) {
+	if (compareCommand(msgIn, USERMOVED)) {
 		if(lastmove){
+			lastmove = false;
 			sprintf(msgOut,
 					"e3 e4"); // send last move by user
 		}
@@ -50,9 +62,15 @@ static void processInMsg(char* msgIn, int socketDescriptor,
 		}
 				// call networkapi
 	}
-	// else if (compareCommand(msgIn, BOARD)) {
-	// 	sprintf(msgOut,
-	// 			"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR\n");}
+	else if (compareCommand(msgIn, MOVE)) {
+		//parse move recieved from stockfish
+		for (int i = 0;i < 10;i++){
+			stockfishMove[i] = msgIn[i];
+		}
+		stockfishMoved = true;
+		sprintf(msgOut,
+	 			"\n");
+	}
 	else {
 		sprintf(msgOut,
 				"Command not accepted. Type help for available commands.\n");

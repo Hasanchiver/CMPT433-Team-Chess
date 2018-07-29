@@ -80,7 +80,7 @@
     </div>
     <script src="enginegame.js"></script>
     <script>
-    var socket = io.connect();
+      //var socket = io.connect();
       var boardStateChanges = "0";
       var lastmove = "";
       var stockfishmove = '';
@@ -132,26 +132,26 @@
 
       /// If we load Stockfish.js via a <script> tag, we need to wait until it loads.
       if (!wait_for_script) {
-        document.addEventListener("DOMContentLoaded", init);
-      }
-      setInterval(function () {
-  	       socket.emit('move');
-  	   }, 1000);
-
-       socket.on('move-reply', function(message){
-           if (boardState != message){
-            //do some string manipulation to see what move user Did
-            nextmove = message.split(" ");
-            stockfishmove = sendtostockfish(nextmove[0], nextmove[1]);
-            socket.emit('move', strockfish);
-            }
-            // if (currentmove != lastmove){
-            //     lastmove = currentmove;
-            //     boardstate = message;
-            //     socket.emit('move', currentmove);
-            // }
-
-       });
+         document.addEventListener("DOMContentLoaded", init);
+       }
+      // setInterval(function () {
+  	  //      socket.emit('usermoved');
+  	  //  }, 1000);
+      //
+      //  socket.on('usermoved-reply', function(message){
+      //      if (boardState != message){
+      //       //do some string manipulation to see what move user Did
+      //       nextmove = message.split(" ");
+      //       stockfishmove = sendtostockfish(nextmove[0], nextmove[1]);
+      //       socket.emit('move', stockfishmove);
+      //       }
+      //       // if (currentmove != lastmove){
+      //       //     lastmove = currentmove;
+      //       //     boardstate = message;
+      //       //     socket.emit('move', currentmove);
+      //       // }
+      //
+      //  });
 
     </script>
   </body>

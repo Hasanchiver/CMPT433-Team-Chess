@@ -20,9 +20,9 @@ function handleCommand(socket) {
 	socket.on('move', function(data) {
 		executeCommand(socket, "move", data, "move-reply");
 	});
-	// socket.on('board', function(data) {
-	// 	executeCommand(socket, "board", data, "board-reply");
-	// });
+	socket.on('usermoved', function(data) {
+		executeCommand(socket, "usermoved", data, "usermoved-reply");
+	});
 };
 
 
@@ -30,7 +30,7 @@ function executeCommand(socket, command, data, replyCommand) {
 
 	// Info for connecting to the local process via UDP
 	var PORT = 54321;
-	var HOST = '127.0.0.1';
+	var HOST = '127.0.0.2';
 	var buffer = new Buffer(command + " " + data);
 
 

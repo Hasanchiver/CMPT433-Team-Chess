@@ -8,6 +8,9 @@ void UdpStop(void);
 
 _Bool userCommandStop(void);
 
-void setLastMoveToTrue();
+void setLastMoveToTrue(); // call this when the user has moved
+_Bool checkIfStockfishMoved(); // check if staockfish
+void setStockfishMovedToFalse(); 
+char* getStockfishMove();
 
 #endif
