@@ -12,6 +12,8 @@ h1, h2 {
 	margin-top: 10pt;
 }
 
+
+
 #status-box {
 	float: right;
 	width: 250px;
@@ -22,6 +24,16 @@ h1, h2 {
 	padding-right: 10pt;
 }
 
+#ourFeedback div p {
+	padding-left: 10px;
+	display: inline;
+
+}
+#ourFeedback div  {
+	background-color: aliceblue;
+	padding: 10px;
+	border: 2px solid blue;
+}	
 #left-box {
 	margin-right: 300px;	
 	border: thin black solid;

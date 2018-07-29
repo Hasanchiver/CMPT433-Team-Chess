@@ -4,6 +4,7 @@
 
 DEPOLY_TARGET = chessProgram
 DEBUGGING_TARGET = test
+PUBDIR = $(HOME)/cmpt433/public/project
 
 SOURCES= main.c spi.c lcd.c gpio.c unicodeboard.c chesslogic.c 
 DEBUG_SOURCE= test.c
@@ -17,7 +18,7 @@ CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L #-Werror
 
 
 
-all: 
+all: node
 	$(CC_C) $(CFLAGS) $(SOURCES) -o $(DEPLOY_DIR)/$(DEPOLY_TARGET) -lpthread -lm
 	
 test:
@@ -26,7 +27,9 @@ test:
 cpptest:
 	arm-linux-gnueabihf-gcc $(CFLAGS) test.cpp BusDevice.cpp -o $(DEPLOY_DIR)/cpptest -lpthread -lm
 
-
+node:
+	mkdir -p $(PUBDIR)/chess-server-copy/
+	cp -R chess-server/* $(PUBDIR)/chess-server-copy/
 
 clean:
 	rm -f $(DEPLOY_DIR)/$(DEPOLY_TARGET)

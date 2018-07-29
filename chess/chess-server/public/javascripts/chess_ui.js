@@ -7,6 +7,14 @@ var volume = 0;
 var tempo = 0;
 var serverErr = null;
 
+function submitFeedback()
+{
+	var rating = $('#rating')[0].value;
+	var comment = $('#comment')[0].value.replace(/(\r\n\t|\n|\r\t)/gm," ");
+	var data = rating + " " + comment + "\n";
+	socket.emit('feedback', data);	
+}
+
 $(document).ready(function() {
 
 	var turnCounter;
@@ -35,14 +43,15 @@ $(document).ready(function() {
 	    table.appendChild(tr);
 	}
 	resetBoard();
-	document.body.appendChild(table);
+	$('#chess-board')[0].appendChild(table);
 
 	//this queries the table every one second for current board
-	setInterval(function () {
-		socket.emit('board');
-	}, 1000);
-	
-
+//	setInterval(function () {
+//		socket.emit('board');
+//	}, 1000);
+//	setInterval(function () {
+//		socket.emit('read-file');
+//	}, 5000);
 	
 
 	//handle incoming messages from the server
@@ -56,7 +65,26 @@ $(document).ready(function() {
 		console.log(message);
 		setCurrentBoard(message);
 	});
-
+	socket.on('read-file-reply', function(message){
+		$('#error-box').hide();
+		document.getElementById("ourFeedback").innerHTML = "";
+		console.log(message);
+		var res = message.split("\n");
+		for (var i = 0; i < res.length - 1; i++)
+		{
+			var div = document.createElement('div');
+			var rating = parseInt(res[i].split(" ")[0],10);
+			for (var j = 0; j < 5; j++)
+			{
+				if (j < rating)
+					$("<span/>", { text: "★" }).appendTo(div);
+				else
+					$("<span/>", { text: "☆" }).appendTo(div);
+			}
+			$("<p />", { text: res[i].substring(2,res[i].length) }).appendTo(div);
+			$('#ourFeedback')[0].appendChild(div);
+		}
+	});
 
 
 	
@@ -93,7 +121,7 @@ $(document).ready(function() {
 		$('#turnSpan').text(turnCounter);	
 	}
 
-
+	
 	function setCurrentBoard(message)
 	{
 		var res = message.split("/");

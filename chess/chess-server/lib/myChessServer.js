@@ -14,11 +14,42 @@ exports.listen = function(server) {
 		handleCommand(socket);
 	});
 };
+function saveFeedback(data)
+{
+	fs.appendFile("/tmp/test.txt", data, function(err) {
+    		if(err) {
+        		return console.log(err);
+    		}
+    	console.log("The file was saved!");
+}); 
+}
+
+function readFeedback(socket, absPath, replyCommand) {
+	fs.exists(absPath, function(exists) {
+		if (exists) {
+			fs.readFile(absPath, function(err, fileData) {
+				if (err) {
+					socket.emit("error","ERROR: Unable to read file " + absPath);
+				} else {	
+					socket.emit(replyCommand, fileData.toString('utf8'));;
+				}
+			});
+		} else {
+			socket.emit("error", "ERROR: File " + absPath + " not found.");
+		}
+	});
+}
 
 function handleCommand(socket) {
 
 	socket.on('turn', function(data) {
 		executeCommand(socket, "turn", data, "turn-reply");
+	});
+	socket.on('feedback', function(data) {
+		saveFeedback(data);
+	});
+	socket.on('read-file', function(data) {
+		readFeedback(socket, '/tmp/test.txt', 'read-file-reply');
 	});
 	socket.on('board', function(data) {
 		executeCommand(socket, "board", data, "board-reply");
