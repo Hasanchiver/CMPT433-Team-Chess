@@ -40,6 +40,20 @@ int ChessLogic_getCheckMateStatus(void);	//non-zero game over, zero, continue
 bool ChessLogic_getDrawStatus(void);
 
 /******************************************************
+ * Functions for LCD
+ ******************************************************/
+typedef struct{
+	int srcx, 
+	int srcy,
+	int dstx,
+	int dsty,
+	int type,
+	int color
+} piecePosUpdate;
+
+bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo);
+
+/******************************************************
  * Functions for StockFish UCI
  ******************************************************/
 
