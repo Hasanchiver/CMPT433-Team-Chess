@@ -62,7 +62,7 @@
               <button type="button" class="btn btn-primary" onclick="newGame()">New Game</button>
             </div>
           </div>
-          
+
           <div class="form-group">
             <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4">Promote to</label>
             <div class="col-xs-4 col-sm-6 col-md-4">
@@ -80,9 +80,13 @@
     </div>
     <script src="enginegame.js"></script>
     <script>
+    var socket = io.connect();
+      var boardStateChanges = "0";
+      var lastmove = "";
+      var stockfishmove = '';
       var wait_for_script;
       var newGame = function (){};
-      
+
       /// We can load Stockfish.js via Web Workers or directly via a <script> tag.
       /// Web Workers are better since they don't block the UI, but they are not always avaiable.
       (function fix_workers()
@@ -99,11 +103,11 @@
           wait_for_script = true;
         }
       }());
-      
+
       function init()
       {
         var game = engineGame();
-    
+
         newGame = function newGame() {
             var baseTime = parseFloat($('#timeBase').val()) * 60;
             var inc = parseFloat($('#timeInc').val());
@@ -115,21 +119,40 @@
             game.setDisplayScore($('#showScore').is(':checked'));
             game.start();
         }
-        
+
         game.setSkillLevel
-        
+
         document.getElementById("skillLevel").addEventListener("change", function ()
         {
             game.setSkillLevel(parseInt(this.value, 10));
         });
-    
+
         newGame();
       }
-      
+
       /// If we load Stockfish.js via a <script> tag, we need to wait until it loads.
       if (!wait_for_script) {
         document.addEventListener("DOMContentLoaded", init);
       }
+      setInterval(function () {
+  	       socket.emit('move');
+  	   }, 1000);
+
+       socket.on('move-reply', function(message){
+           if (boardState != message){
+            //do some string manipulation to see what move user Did
+            nextmove = message.split(" ");
+            stockfishmove = sendtostockfish(nextmove[0], nextmove[1]);
+            socket.emit('move', strockfish);
+            }
+            // if (currentmove != lastmove){
+            //     lastmove = currentmove;
+            //     boardstate = message;
+            //     socket.emit('move', currentmove);
+            // }
+
+       });
+
     </script>
   </body>
 </html>

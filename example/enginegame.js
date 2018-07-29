@@ -1,4 +1,9 @@
-<script type="text/javascript" src="SFserver.js"></script>
+var socket = io.connect();
+var volume = 0;
+var tempo = 0;
+var serverErr = null;
+var currentmove = "";
+var lastmove = "";
 function engineGame(options) {
     options = options || {}
     var game = new Chess();
@@ -123,6 +128,13 @@ function engineGame(options) {
         clockTick();
     }
 
+    function handleCommand(socket) {
+
+    	socket.on('move', function(data) {
+    		executeCommand(socket, "move", data, "move-reply");
+    	});
+    };
+
     function get_moves()
     {
         var moves = '';
@@ -204,8 +216,9 @@ function engineGame(options) {
                 isEngineRunning = false;
                 game.move({from: match[1], to: match[2], promotion: match[3]});
                 prepareMove();
-                uciCmd("eval", evaler)
-                socket.emit(match[1]+match[2]);
+                uciCmd("eval", evaler);
+                lastmove = currentmove;
+                currentmove = match[1] + " " + match[2];
                 evaluation_el.textContent = "";
                 //uciCmd("eval");
             /// Is it sending feedback?
@@ -259,6 +272,7 @@ function engineGame(options) {
         if (move === null) return 'snapback';
 
         prepareMove();
+        return currentmove;
     };
 
     // update the board position after the piece snap

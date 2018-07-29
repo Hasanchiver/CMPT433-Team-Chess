@@ -8,4 +8,6 @@ void UdpStop(void);
 
 _Bool userCommandStop(void);
 
+void setLastMoveToTrue();
+
 #endif

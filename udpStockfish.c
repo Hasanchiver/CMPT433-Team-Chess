@@ -8,16 +8,15 @@
 #include <stdbool.h>
 
 #define MOVE "move"
+#define BOARD "board"
 
 #define PORTNUMBER 54321
 #define MAX_MESSAGE_LENGTH 1024
-#define MAXVOL 100
-#define MAXTEMPO 300
-#define MINTEMPO 40
 
 static pthread_t threadId;
 static char msgOut[MAX_MESSAGE_LENGTH];
 static _Bool stopUdp = false;
+static _Bool lastmove = false;
 
 _Bool userCommandStop() {
 	return stopUdp;
@@ -31,21 +30,36 @@ static _Bool compareCommand(char* msgIn, char* acceptedCommand) {
 	return strncmp(msgIn, acceptedCommand, strlen(acceptedCommand)) == 0;
 }
 
+void setLastMoveToTrue(){
+
+}
+
 static void processInMsg(char* msgIn, int socketDescriptor,
 		struct sockaddr_in *sin) {
 	msgOut[0] = 0;
 	//int number = getIndexFromString(msgIn);
-	int feedback = -1;
+	//int feedback = -1;
 	if (compareCommand(msgIn, MOVE)) {
-		sprintf(msgOut,
-				"Command not accepted. Type help for available commands.\n");
-	} else {
+		if(lastmove){
+			sprintf(msgOut,
+					"e3 e4"); // send last move by user
+		}
+		else{
+			sprintf(msgOut,
+					"0");
+		}
+				// call networkapi
+	}
+	// else if (compareCommand(msgIn, BOARD)) {
+	// 	sprintf(msgOut,
+	// 			"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR\n");}
+	else {
 		sprintf(msgOut,
 				"Command not accepted. Type help for available commands.\n");
 	}
-	if (feedback != -1) {
-		sprintf(msgOut, "%d\n", feedback);
-	}
+	// if (feedback != -1) {
+	// 	sprintf(msgOut, "%d\n", feedback);
+	// }
 }
 
 static void *startUdp(void *args) {
