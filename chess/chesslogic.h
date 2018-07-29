@@ -42,8 +42,7 @@ bool ChessLogic_getDrawStatus(void);
 /******************************************************
  * Functions for LCD
  ******************************************************/
-//bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo);
-bool ChessLogic_castlingTriggered(){
+bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo);
 
 /******************************************************
  * Functions for StockFish UCI
