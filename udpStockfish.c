@@ -12,61 +12,91 @@
 
 #define PORTNUMBER 54321
 #define MAX_MESSAGE_LENGTH 1024
+#define STOCKFISH_MOVE_STRING_SIZE 10
 
 static pthread_t threadId;
 static char msgOut[MAX_MESSAGE_LENGTH];
 static _Bool stopUdp = false;
 static _Bool lastmove = false;
 static _Bool stockfishMoved = false;
-char* stockfishMove = "move e2 e4";
+char* stockfishMove = NULL; // Bad design. Need to change
 
 _Bool userCommandStop() {
 	return stopUdp;
 }
-// static int getIndexFromString(char *string) {
-// 	int value = -1;
-// 	sscanf(string, "%*s %d", &value);
-// 	return value;
+// char* separateMoveFromString(char *line) {
+// 	char *s1;
+// 	char *s2;
+// 	char *sp;
+//
+// 	sp = strchr(line, ' ');
+// 	if (!sp) { exit(EXIT_FAILURE); }
+//
+// 	s1 = strndup(line, sp-line); /* Copy chars until space */
+// 	s2 = sp+1; /* Skip the space */
+//
+// 	free(s1);
 // }
+
+// Exposed functions for stockfish
+/*************************************************************
+*************************************************************/
 static _Bool compareCommand(char* msgIn, char* acceptedCommand) {
 	return strncmp(msgIn, acceptedCommand, strlen(acceptedCommand)) == 0;
 }
 
-void setLastMoveToTrue(){
+void Stockfish_setLastMoveToTrue(){
 	lastmove = true;
 }
 
-void setStockfishMovedToFalse(){
+_Bool Stockfish_checkIfStockfishMoved(){
+	return stockfishMoved;
+}
+
+void Stockfish_setStockfishMovedToFalse(){
 	stockfishMoved = false;
 }
 
-// void setLastMoveToTrue(){
-// 	lastmove = true;
-// }
+void Stockfish_getStockfishMove(char **buffer, int buffersize){
+	*buffer = stockfishMove;
+}
 
+/*************************************************************
+*************************************************************/
+
+
+// Process input recieved from stockfish socket
+/*************************************************************
+*************************************************************/
 
 static void processInMsg(char* msgIn, int socketDescriptor,
 		struct sockaddr_in *sin) {
 	msgOut[0] = 0;
-	//int number = getIndexFromString(msgIn);
-	//int feedback = -1;
+
+	// parse msgIn. Could contain move from stockfish.Expected stockfish string form "move e2 e4"
+	char *s1,*s2,*sp;
+	sp = strchr(msgIn, ' ');
+	if (sp) {
+		s1 = strndup(msgIn, sp-msgIn); /* Copy chars until space */
+		msgIn = s1;
+		s2 = sp+1; /* Skip the space */
+	}
+
 	if (compareCommand(msgIn, USERMOVED)) {
-		if(lastmove){
+		if(lastmove){ // If user has moved since last time, send new move
 			lastmove = false;
-			sprintf(msgOut,
-					"e3 e4"); // send last move by user
+			char* buffer = NULL;
+			//NetworkAPI_getMostRecentMove(&buffer, 10); TODO!! uncomment after merge with networkapi
+			sprintf(msgOut, "%s",
+					buffer); // Send last move by user. Expected form "e2 e4"
 		}
-		else{
+		else{ // If user has not moved, send 0
 			sprintf(msgOut,
 					"0");
 		}
-				// call networkapi
 	}
 	else if (compareCommand(msgIn, MOVE)) {
-		//parse move recieved from stockfish
-		for (int i = 0;i < 10;i++){
-			stockfishMove[i] = msgIn[i];
-		}
+		stockfishMove = s2; // store move locally. can be accessed through exposed function
 		stockfishMoved = true;
 		sprintf(msgOut,
 	 			"\n");
@@ -75,11 +105,16 @@ static void processInMsg(char* msgIn, int socketDescriptor,
 		sprintf(msgOut,
 				"Command not accepted. Type help for available commands.\n");
 	}
-	// if (feedback != -1) {
-	// 	sprintf(msgOut, "%d\n", feedback);
-	// }
+	free(s1);
 }
 
+/*************************************************************
+*************************************************************/
+
+
+// Main UDP thread for stockfish
+/*************************************************************
+*************************************************************/
 static void *startUdp(void *args) {
 	char msgIn[MAX_MESSAGE_LENGTH];
 
@@ -113,6 +148,8 @@ static void *startUdp(void *args) {
 	close(socket_descriptor);
 	return NULL;
 }
+/*************************************************************
+*************************************************************/
 
 void UdpStart(void) {
 	pthread_create(&threadId, NULL, *startUdp, NULL);
