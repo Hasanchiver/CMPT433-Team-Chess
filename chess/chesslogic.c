@@ -55,6 +55,8 @@ static void ChessLogic_initLogicBoard(void){
 	whiteCheckFlag = false;
 	blackCheckMateFlag = false;
 	whiteCheckMateFlag = false;
+	turnNumber = 1;
+	currentTurn = white;
 	drawFlag = false;
 	halfMoveTimer = 0;
 	fullMoveTimer = 1;
