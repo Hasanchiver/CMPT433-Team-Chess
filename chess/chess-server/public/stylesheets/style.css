@@ -12,7 +12,15 @@ h1, h2 {
 	margin-top: 10pt;
 }
 
-
+select
+{
+    width: 100px;
+    height: 30px;
+}
+div
+{
+	padding:5px;
+}
 
 #status-box {
 	float: right;
