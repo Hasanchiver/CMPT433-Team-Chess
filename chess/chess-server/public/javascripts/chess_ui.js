@@ -46,12 +46,13 @@ $(document).ready(function() {
 	$('#chess-board')[0].appendChild(table);
 
 	//this queries the table every one second for current board
-//	setInterval(function () {
-//		socket.emit('board');
-//	}, 1000);
-//	setInterval(function () {
-//		socket.emit('read-file');
-//	}, 5000);
+	setInterval(function () {
+		socket.emit('turn');
+		socket.emit('board');
+	}, 1000);
+	setInterval(function () {
+		socket.emit('read-file');
+	}, 5000);
 	
 
 	//handle incoming messages from the server

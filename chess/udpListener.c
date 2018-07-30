@@ -1,6 +1,7 @@
 // udpListener.c
 #include "udpListener.h"
 #include "networkAPI.h"
+#include "chesslogic.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <netdb.h>
@@ -29,14 +30,14 @@ static void processInMsg(char* msgIn, int socketDescriptor, struct sockaddr_in *
 {
 	msgOut[0] = 0;
 
-	//char* str = (char*) malloc(200*sizeof(char));
+	int feedback = 0;
 	if (compareCommand(msgIn,COMMAND_TURN))
 	{
-		NetworkAPI_getBoardString(msgOut,MAX_MESSAGE_LENGTH );
+		feedback = ChessLogic_getTurnCount();
+		sprintf(msgOut, "%d\n", feedback);
 	}
 	else if(compareCommand(msgIn,COMMAND_BOARD))
 	{
-		sprintf(msgOut, "fuck this shit");
 		NetworkAPI_getBoardString(msgOut,MAX_MESSAGE_LENGTH ); 
 	}
 }
