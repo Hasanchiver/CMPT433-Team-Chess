@@ -1,6 +1,11 @@
 #include "global.h"
 #include "chesslogic.h"
 #include <stdio.h> //for sprintf
+#include <wchar.h>
+
+#define FIRSTLETTER "a"
+#define FIRSTNUMBER "1"
+#define MINBUFFERSIZE 100;
 
 const char upperCase[] = "XPRNBQK";
 const char lowerCase[] = "xprnbqk";
@@ -16,19 +21,19 @@ void NetworkAPI_getBoardString(char *buffer, int buffersize){ // must give at le
 				// error, buffer is not big enough
 				break;
 			}
-			if (ChessLogic_getCoordinatePieceType(x,y) != nopiece &&
+			if (ChessLogic_getChessSquarePieceType(x,y) != nopiece &&
 				emptyInc > 0){
 				index += sprintf(&buffer[index], "%d", emptyInc);
 				emptyInc = 0;
 			}
-			if (ChessLogic_getCoordinatePieceColor(x,y) == black){
-				temp = lowerCase[ChessLogic_getCoordinatePieceType(x,y)];
+			if (ChessLogic_getChessSquarePieceColor(x,y) == black){
+				temp = lowerCase[ChessLogic_getChessSquarePieceType(x,y)];
 				index += sprintf(&buffer[index], "%c", temp);
 
-			} else if (ChessLogic_getCoordinatePieceColor(x,y) == white){
-				temp = upperCase[ChessLogic_getCoordinatePieceType(x,y)];
+			} else if (ChessLogic_getChessSquarePieceColor(x,y) == white){
+				temp = upperCase[ChessLogic_getChessSquarePieceType(x,y)];
 				index += sprintf(&buffer[index], "%c", temp);
-			} else if (ChessLogic_getCoordinatePieceType(x,y) == nopiece){
+			} else if (ChessLogic_getChessSquarePieceType(x,y) == nopiece){
 				emptyInc++;
 			}
 		}
@@ -40,4 +45,29 @@ void NetworkAPI_getBoardString(char *buffer, int buffersize){ // must give at le
 			index += sprintf(&buffer[index], "/");
 		}
 	}
+}
+
+void NetworkAPI_getMostRecentMove(char *buffer, int buffersize){
+	char srcletter, srcnumber, dstletter, dstnumber;
+	int index = 0;
+	piecePosUpdate mostRecentMove;
+	ChessLogic_getLastMove(&mostRecentMove);
+	if (mostRecentMove.srcx == -1 || mostRecentMove.srcy == -1 ||
+		mostRecentMove.dstx == -1 || mostRecentMove.dsty == -1){
+		index += sprintf(&buffer[index], " ");
+	} else {
+		srcletter = getIncrementToBoardLetter(mostRecentMove.srcx);
+		srcnumber = getIncrementToBoardNumber(mostRecentMove.srcy);
+		dstletter = getIncrementToBoardLetter(mostRecentMove.dstx);
+		dstnumber = getIncrementToBoardNumber(mostRecentMove.dsty);
+		index += sprintf(&buffer[index], "%c", srcletter);
+		index += sprintf(&buffer[index], "%c", srcnumber);
+		index += sprintf(&buffer[index], " ");
+		index += sprintf(&buffer[index], "%c", dstletter);
+		index += sprintf(&buffer[index], "%c", dstnumber);
+	}
+
+	/*wprintf(L"%d,%d %d,%d\n", mostRecentMove.srcx, mostRecentMove.srcy, 
+							mostRecentMove.dstx, mostRecentMove.dsty);
+	wprintf(L"%c%c %c%c\n", srcletter, srcnumber, dstletter, dstnumber);*/
 }

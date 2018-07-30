@@ -11,31 +11,33 @@
 #define FIRSTNUMBER "1"
 #define DRAWTIMER 50
 
-typedef struct{
-	char pieceType;
-	char pieceColor;
-	bool firstMove;
-	bool castling;
-	int idleInSquare; // number of turns pawn has stayed in square
-	bool availableMoves[BOARDGRIDSIZE][BOARDGRIDSIZE];
-} squareInfo;
-
 static pthread_mutex_t chessMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static squareInfo logicBoard[BOARDGRIDSIZE][BOARDGRIDSIZE];
 static Color currentTurn = white;
 
-// flags for Stockfish UCI
-static int fullMoveTimer = 0;
+// flags and variables for Stockfish UCI
+static int fullMoveTimer = 1;
 static bool whiteCanQueenSide = false;
 static bool whiteCanKingSide = false;
 static bool blackCanQueenSide = false;
 static bool blackCanKingSide = false;
+static piecePosUpdate lastMove;
+
+// flags and variables for the LCD
+static bool whiteHasQueenSide = false;
+static bool whiteHasKingSide = false;
+static bool blackHasQueenSide = false;
+static bool blackHasKingSide = false;
+static bool pawnHasEnPassant = false;
+static int enPassant_dstx = 0;
+static int enPassant_dsty = 0;
 
 static bool blackCheckFlag = false;
 static bool whiteCheckFlag = false;
 static bool blackCheckMateFlag = false;
 static bool whiteCheckMateFlag = false;
+
 static bool drawFlag = false;
 static int halfMoveTimer = 0;
 
@@ -55,16 +57,23 @@ static void ChessLogic_initLogicBoard(void){
 	whiteCheckMateFlag = false;
 	drawFlag = false;
 	halfMoveTimer = 0;
-	fullMoveTimer = 0;
+	fullMoveTimer = 1;
+	lastMove.srcx = -1;
+	lastMove.srcy = -1;
+	lastMove.dstx = -1;
+	lastMove.dsty = -1;
+	lastMove.type = -1;
+	lastMove.color = -1;
 	for (int y = 0; y < BOARDGRIDSIZE; y++){
 		for (int x = 0; x < BOARDGRIDSIZE; x++){
 			logicBoard[x][y].pieceType = nopiece;
 			logicBoard[x][y].pieceColor = nocolor;
 			logicBoard[x][y].firstMove = true;
+			logicBoard[x][y].doubleStep = false;
 			logicBoard[x][y].idleInSquare = 0;
 		}
 	}
-
+	
 	// setup pawn pieces
 	for (int x = 0; x < BOARDGRIDSIZE; x++){
 		logicBoard[x][1].pieceType = pawn;
@@ -102,24 +111,36 @@ static void ChessLogic_initLogicBoard(void){
 	logicBoard[4][BOARDGRIDSIZE-1].pieceColor = black;
 }
 
-static int getBoardLetterIncrement(char letter){
+int getBoardLetterIncrement(char letter){
 	int letterdiff = letter - *FIRSTLETTER;
 	if (letterdiff < 0 || letterdiff >= BOARDGRIDSIZE) return -1;
 	return letterdiff;
 }
 
-static int getBoardNumberIncrement(char number){
+int getBoardNumberIncrement(char number){
 	int numberdiff = number - *FIRSTNUMBER;
 	if (numberdiff < 0 || numberdiff >= BOARDGRIDSIZE) return -1;
 	return numberdiff;
 }
 
-static int xyCoordinateToInteger(int x, int y){
+char getIncrementToBoardLetter(int x){
+	if (x < 0 || x >= BOARDGRIDSIZE) return -1;
+	char letter = *FIRSTLETTER + x;
+	return letter;
+}
+
+char getIncrementToBoardNumber(int y){
+	if (y < 0 || y >= BOARDGRIDSIZE) return -1;
+	char number = *FIRSTNUMBER + y;
+	return number;
+}
+
+int xyCoordinateToInteger(int x, int y){
 	// Converts xy coordinate to integer
 	return (y * BOARDGRIDSIZE + x);
 }
 
-static void integerToXYCoordinate(int val, int *x, int *y){
+void integerToXYCoordinate(int val, int *x, int *y){
 	*x = val % BOARDGRIDSIZE;
 	*y = (val - *x) / BOARDGRIDSIZE;
 }
@@ -144,6 +165,39 @@ static void ChessLogic_checkPromotePawn(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[srcx][srcy].pieceType = queen;
 	}
 	return;
+}
+
+static void ChessLogic_updateCastlingFlags(int srcx, int srcy, int dstx, int dsty){
+	// White queenside
+	if (logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		logicBoard[0][WHITESIDE].pieceType == rook &&
+		logicBoard[0][WHITESIDE].firstMove == true &&
+		logicBoard[1][WHITESIDE].pieceType == nopiece){
+		whiteCanQueenSide = true;
+	}
+	// White kingside
+	if (logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == white && 
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType == rook &&
+		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove == true){
+		whiteCanKingSide = true;
+	}
+	// Black queenside
+	if (logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		logicBoard[0][BLACKSIDE].pieceType == rook &&
+		logicBoard[0][BLACKSIDE].firstMove == true &&
+		logicBoard[1][BLACKSIDE].pieceType == nopiece){
+		blackCanQueenSide = true;
+	}
+	// Black kingside
+	if (logicBoard[srcx][srcy].firstMove == true && 
+		logicBoard[srcx][srcy].pieceColor == black && 
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType == rook &&
+		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove == true){
+		blackCanKingSide = true;
+	}
 }
 
 /******************************************************
@@ -224,44 +278,32 @@ static bool ChessLogic_kingMoves(int srcx, int srcy, int dstx, int dsty){
 	if (abs(diffx) == 1 && abs(diffy) == 1) return true;
 
 	// Castling
-	// White queenside
-	if (diffy == 0 && diffx == 2 && whiteCheckFlag == false &&
-		logicBoard[srcx][srcy].firstMove == true && 
-		logicBoard[srcx][srcy].pieceColor == white && 
-		logicBoard[0][WHITESIDE].pieceType == rook &&
-		logicBoard[0][WHITESIDE].firstMove == true){
+	// White queenside (can't capture when castling)
+	if (diffy == 0 && diffx == 2 && !whiteCheckFlag && whiteCanQueenSide &&
+		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
-		whiteCanQueenSide = true;
+		//whiteHasQueenSide = true;
 		return true;
 	}
-	// White kingside
-	if (diffy == 0 && diffx == -2 && whiteCheckFlag == false &&
-		logicBoard[srcx][srcy].firstMove == true && 
-		logicBoard[srcx][srcy].pieceColor == white && 
-		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType == rook &&
-		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove == true){
+	// White kingside (can't capture when castling)
+	if (diffy == 0 && diffx == -2 && !whiteCheckFlag && whiteCanKingSide &&
+		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
-		whiteCanKingSide = true;
+		//whiteHasKingSide = true;
 		return true;
 	}
-	// Black queenside
-	if (diffy == 0 && diffx == 2 && blackCheckFlag == false &&
-		logicBoard[srcx][srcy].firstMove == true && 
-		logicBoard[srcx][srcy].pieceColor == black && 
-		logicBoard[0][BLACKSIDE].pieceType == rook &&
-		logicBoard[0][BLACKSIDE].firstMove == true){
+	// Black queenside (can't capture when castling)
+	if (diffy == 0 && diffx == 2 && !blackCheckFlag && blackCanQueenSide &&
+		logicBoard[dstx][dsty].pieceType == nopiece){
 		queensideFlag = true;
-		blackCanQueenSide = true;
+		//blackHasQueenSide = true;
 		return true;
 	}
-	// Black kingside
-	if (diffy == 0 && diffx == -2 && blackCheckFlag == false &&
-		logicBoard[srcx][srcy].firstMove == true && 
-		logicBoard[srcx][srcy].pieceColor == black && 
-		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType == rook &&
-		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove == true){
+	// Black kingside (can't capture when castling)
+	if (diffy == 0 && diffx == -2 && !blackCheckFlag && blackCanKingSide &&
+		logicBoard[dstx][dsty].pieceType == nopiece){
 		kingsideFlag = true;
-		blackCanKingSide = true;
+		//blackHasKingSide = true;
 		return true;
 	}
 	return false;
@@ -337,7 +379,8 @@ static bool ChessLogic_pawnMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[srcx][srcy].pieceColor == white &&
 		logicBoard[dstx][dsty-1].pieceType == pawn &&
 		logicBoard[dstx][dsty-1].pieceColor == black &&
-		logicBoard[dstx][dsty-1].idleInSquare == 1){
+		logicBoard[dstx][dsty-1].idleInSquare == 1 &&
+		logicBoard[dstx][dsty-1].doubleStep == true){
 		enPasseFlag = true;
 		return true;
 	}
@@ -345,7 +388,8 @@ static bool ChessLogic_pawnMoves(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[srcx][srcy].pieceColor == black &&
 		logicBoard[dstx][dsty+1].pieceType == pawn &&
 		logicBoard[dstx][dsty+1].pieceColor == white &&
-		logicBoard[dstx][dsty+1].idleInSquare == 1) {
+		logicBoard[dstx][dsty+1].idleInSquare == 1 &&
+		logicBoard[dstx][dsty+1].doubleStep == true) {
 		enPasseFlag = true;
 		return true;
 	}
@@ -368,9 +412,15 @@ static bool ChessLogic_isCheck(int srcx, int srcy, int dstx, int dsty){
 }
 
 static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
+	int diffy = abs(srcy - dsty);
+	halfMoveTimer += 1;
 	if (logicBoard[srcx][srcy].pieceType == pawn ||
 		logicBoard[dstx][dsty].pieceType != nopiece){
 		halfMoveTimer = 0;
+	}
+
+	if (logicBoard[srcx][srcy].pieceType == pawn && diffy == 2){
+		logicBoard[dstx][dsty].doubleStep = true;
 	}
 
 	if (logicBoard[srcx][srcy].pieceType == pawn && enPasseFlag == true){
@@ -378,17 +428,24 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 			logicBoard[dstx][dsty-1].pieceType = nopiece;
 			logicBoard[dstx][dsty-1].pieceColor = nocolor;
 			logicBoard[dstx][dsty-1].idleInSquare = 0;
+			pawnHasEnPassant = true;
+			enPassant_dstx = dstx;
+			enPassant_dsty = dsty-1;
 		}
 		if (logicBoard[dstx][dsty+1].pieceColor == white){
 			logicBoard[dstx][dsty+1].pieceType = nopiece;
 			logicBoard[dstx][dsty+1].pieceColor = nocolor;
 			logicBoard[dstx][dsty+1].idleInSquare = 0;
+			pawnHasEnPassant = true;
+			enPassant_dstx = dstx;
+			enPassant_dsty = dsty+1;
 		}
 	}
 
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == white && 
 		queensideFlag == true){
+		whiteHasQueenSide = true;
 		logicBoard[0][WHITESIDE].pieceType = nopiece;
 		logicBoard[0][WHITESIDE].pieceColor = nocolor;
 		logicBoard[0][WHITESIDE].firstMove = false;
@@ -399,6 +456,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == white && 
 		kingsideFlag == true){
+		whiteHasKingSide = true;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceType = nopiece;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].pieceColor = nocolor;
 		logicBoard[BOARDGRIDSIZE-1][WHITESIDE].firstMove = false;
@@ -410,6 +468,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == black && 
 		queensideFlag == true){
+		blackHasQueenSide = true;
 		logicBoard[0][BLACKSIDE].pieceType = nopiece;
 		logicBoard[0][BLACKSIDE].pieceColor = nocolor;
 		logicBoard[0][BLACKSIDE].firstMove = false;
@@ -420,6 +479,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == king && 
 		logicBoard[srcx][srcy].pieceColor == black && 
 		kingsideFlag == true){
+		blackHasKingSide = true;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceType = nopiece;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].pieceColor = nocolor;
 		logicBoard[BOARDGRIDSIZE-1][BLACKSIDE].firstMove = false;
@@ -427,6 +487,13 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 		logicBoard[dstx-1][dsty].pieceColor = black;
 		logicBoard[dstx-1][dsty].firstMove = false;
 	}
+
+	lastMove.srcx = srcx;
+	lastMove.srcy = srcy;
+	lastMove.dstx = dstx;
+	lastMove.dsty = dsty;
+	lastMove.type = logicBoard[srcx][srcy].pieceType;
+	lastMove.color = logicBoard[srcx][srcy].pieceColor;
 
 	logicBoard[dstx][dsty].pieceType = logicBoard[srcx][srcy].pieceType;
 	logicBoard[dstx][dsty].pieceColor = logicBoard[srcx][srcy].pieceColor;
@@ -437,8 +504,7 @@ static void ChessLogic_processMove(int srcx, int srcy, int dstx, int dsty){
 	logicBoard[srcx][srcy].pieceColor = nocolor;
 	logicBoard[srcx][srcy].firstMove = false;
 	logicBoard[srcx][srcy].idleInSquare = 0;
-
-	halfMoveTimer += 1;
+	logicBoard[srcx][srcy].doubleStep = false;
 }
 
 static void ChessLogic_nextTurn(){
@@ -543,6 +609,7 @@ static void ChessLogic_calculateMoves(int srcx, int srcy){
 		for (int dstx = 0; dstx < BOARDGRIDSIZE; dstx++){
 			logicBoard[srcx][srcy].availableMoves[dstx][dsty] = false;
 			if (ChessLogic_isSameColor(srcx, srcy, dstx, dsty)) continue;
+			if (currentPiece == king) ChessLogic_updateCastlingFlags(srcx, srcy, dstx, dsty);
 			if (CheckLogic_isJumpingOverPiece(srcx, srcy, dstx, dsty)) continue;
 
 			if (currentPiece == king){
@@ -576,6 +643,25 @@ static void ChessLogic_calculateMoves(int srcx, int srcy){
 	}
 }
 
+// Ensures that a king cannot capture a piece whose square
+// is not controlled by another piece
+static bool ChessLogic_checkKingCaptureDoesNotCheck(int dstx, int dsty){
+	for (int y = 0; y < BOARDGRIDSIZE; y++){
+		for (int x = 0; x < BOARDGRIDSIZE; x++){
+			if (!ChessLogic_isSameColor(dstx, dsty, x, y)) continue;
+			if (logicBoard[x][y].pieceType == queen &&
+				ChessLogic_queenMoves(x, y, dstx, dsty)) return true;
+			if (logicBoard[x][y].pieceType == rook &&
+				ChessLogic_rookMoves(x, y, dstx, dsty)) return true;
+			if (logicBoard[x][y].pieceType == bishop &&
+				ChessLogic_bishopMoves(x, y, dstx, dsty)) return true;
+			if (logicBoard[x][y].pieceType == knight &&
+				ChessLogic_knightMoves(x, y, dstx, dsty)) return true;
+		}
+	}
+	return false;
+}
+
 static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 	for (int y = 0; y < BOARDGRIDSIZE; y++){
 		for (int x = 0; x < BOARDGRIDSIZE; x++){
@@ -591,6 +677,7 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 				}
 			}
 
+			// King cannot go to square that is diagonally in front of pawn
 			if (logicBoard[x][y].pieceType == pawn &&
 				logicBoard[x][y].pieceColor == white){
 				if (x < (BOARDGRIDSIZE-1) && x >= 0 &&
@@ -602,7 +689,7 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 					logicBoard[kingx][kingy].availableMoves[x-1][y+1] = false;
 				}
 			}
-
+			// King cannot go to square that is diagonally in front of pawn
 			if (logicBoard[x][y].pieceType == pawn &&
 				logicBoard[x][y].pieceColor == black){
 				if (x < (BOARDGRIDSIZE-1) && x >= 0 &&
@@ -615,15 +702,29 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 				}
 			}
 
+			// King cannot go to squares that opponent pieces are in control of
 			if ((kingx+1) < BOARDGRIDSIZE){
 				if (logicBoard[x][y].availableMoves[kingx+1][kingy]){
 					logicBoard[kingx][kingy].availableMoves[kingx+1][kingy] = false;
+					// Cannot castle if its passing a square controlled by opponent
 					if (logicBoard[kingx][kingy].firstMove){
 						logicBoard[kingx][kingy].availableMoves[kingx+2][kingy] = false;
 					}
 				}
+				// King cannot capture a piece if the piece's square is controlled 
+				// by another opponent piece
+				if (logicBoard[kingx][kingy].availableMoves[kingx+1][kingy] &&
+					logicBoard[kingx+1][kingy].pieceType != nopiece &&
+					ChessLogic_checkKingCaptureDoesNotCheck(kingx+1, kingy)){
+					logicBoard[kingx][kingy].availableMoves[kingx+1][kingy] = false;
+				}
 				if ((kingy+1) < BOARDGRIDSIZE){
 					if (logicBoard[x][y].availableMoves[kingx+1][kingy+1]){
+						logicBoard[kingx][kingy].availableMoves[kingx+1][kingy+1] = false;
+					}
+					if (logicBoard[kingx][kingy].availableMoves[kingx+1][kingy+1] &&
+						logicBoard[kingx+1][kingy+1].pieceType != nopiece &&
+						ChessLogic_checkKingCaptureDoesNotCheck(kingx+1, kingy+1)){
 						logicBoard[kingx][kingy].availableMoves[kingx+1][kingy+1] = false;
 					}
 				}
@@ -631,17 +732,33 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 					if (logicBoard[x][y].availableMoves[kingx+1][kingy-1]){
 						logicBoard[kingx][kingy].availableMoves[kingx+1][kingy-1] = false;
 					}
+					if (logicBoard[kingx][kingy].availableMoves[kingx+1][kingy-1] &&
+						logicBoard[kingx+1][kingy-1].pieceType != nopiece &&
+						ChessLogic_checkKingCaptureDoesNotCheck(kingx+1, kingy-1)){
+						logicBoard[kingx][kingy].availableMoves[kingx+1][kingy-1] = false;
+					}
 				}
 			}
 			if ((kingx-1) >= 0){
 				if (logicBoard[x][y].availableMoves[kingx-1][kingy]){
 					logicBoard[kingx][kingy].availableMoves[kingx-1][kingy] = false;
+					// Cannot castle if its passing a square controlled by opponent
 					if (logicBoard[kingx][kingy].firstMove){
 						logicBoard[kingx][kingy].availableMoves[kingx-2][kingy] = false;
 					}
 				}
+				if (logicBoard[kingx][kingy].availableMoves[kingx-1][kingy] &&
+					logicBoard[kingx-1][kingy].pieceType != nopiece &&
+					ChessLogic_checkKingCaptureDoesNotCheck(kingx-1, kingy)){
+					logicBoard[kingx][kingy].availableMoves[kingx-1][kingy] = false;
+				}
 				if ((kingy+1) < BOARDGRIDSIZE){
 					if (logicBoard[x][y].availableMoves[kingx-1][kingy+1]){
+						logicBoard[kingx][kingy].availableMoves[kingx-1][kingy+1] = false;
+					}
+					if (logicBoard[kingx][kingy].availableMoves[kingx-1][kingy+1] &&
+						logicBoard[kingx-1][kingy+1].pieceType != nopiece &&
+						ChessLogic_checkKingCaptureDoesNotCheck(kingx-1, kingy+1)){
 						logicBoard[kingx][kingy].availableMoves[kingx-1][kingy+1] = false;
 					}
 				}
@@ -649,14 +766,30 @@ static void ChessLogic_recalculateKingMoves(int kingx, int kingy){
 					if (logicBoard[x][y].availableMoves[kingx-1][kingy-1]){
 						logicBoard[kingx][kingy].availableMoves[kingx-1][kingy-1] = false;
 					}
+					if (logicBoard[kingx][kingy].availableMoves[kingx-1][kingy-1] &&
+						logicBoard[kingx-1][kingy-1].pieceType != nopiece &&
+						ChessLogic_checkKingCaptureDoesNotCheck(kingx-1, kingy-1)){
+						logicBoard[kingx][kingy].availableMoves[kingx-1][kingy-1] = false;
+					}
 				}
 			}
 			if ((kingy+1) < BOARDGRIDSIZE){
-				if (logicBoard[x][y].availableMoves[kingx][kingy+1])
+				if (logicBoard[x][y].availableMoves[kingx][kingy+1]){
 					logicBoard[kingx][kingy].availableMoves[kingx][kingy+1] = false;
+				}
+				if (logicBoard[kingx][kingy].availableMoves[kingx][kingy+1] &&
+					logicBoard[kingx][kingy+1].pieceType != nopiece &&
+					ChessLogic_checkKingCaptureDoesNotCheck(kingx, kingy+1)){
+					logicBoard[kingx][kingy].availableMoves[kingx][kingy+1] = false;
+				}
 			}
 			if ((kingy-1) < BOARDGRIDSIZE){
 				if (logicBoard[x][y].availableMoves[kingx][kingy-1]){
+					logicBoard[kingx][kingy].availableMoves[kingx][kingy-1] = false;
+				}
+				if (logicBoard[kingx][kingy].availableMoves[kingx][kingy-1] &&
+					logicBoard[kingx][kingy-1].pieceType != nopiece &&
+					ChessLogic_checkKingCaptureDoesNotCheck(kingx, kingy-1)){
 					logicBoard[kingx][kingy].availableMoves[kingx][kingy-1] = false;
 				}
 			}
@@ -671,10 +804,6 @@ static void ChessLogic_updateAllPieceMoves(void){
 	checkingPieceLocation = -1;
 	whiteCheckFlag = false;
 	blackCheckFlag = false;
-	whiteCanQueenSide = false;
-	whiteCanKingSide = false;
-	blackCanQueenSide = false;
-	blackCanKingSide = false;
 	numberOfChecks = 0;
 	
 	for (int srcy = 0; srcy < BOARDGRIDSIZE; srcy++){
@@ -728,105 +857,307 @@ static void ChessLogic_updateAllPieceMoves(void){
  * Accessor Chess Logic Functions
  ******************************************************/
 void ChessLogic_startNewGame(void){
+	pthread_mutex_lock(&chessMutex);
 	ChessLogic_initLogicBoard();
 	ChessLogic_updateAllPieceMoves();
+	pthread_mutex_unlock(&chessMutex);
 }
 
-int ChessLogic_getCoordinatePieceType(int x, int y){
+/*int ChessLogic_getCoordinatePieceType(int x, int y){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (x < 0 || x >= BOARDGRIDSIZE ||
 		y < 0 || y >= BOARDGRIDSIZE) return -1;
 	return logicBoard[x][y].pieceType;
 }
 
 int ChessLogic_getCoordinatePieceColor(int x, int y){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	if (x < 0 || x >= BOARDGRIDSIZE ||
+		y < 0 || y >= BOARDGRIDSIZE) return -1;
+	return logicBoard[x][y].pieceColor;
+}*/
+
+int ChessLogic_getChessSquarePieceType(int x, int y){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	if (x < 0 || x >= BOARDGRIDSIZE ||
+		y < 0 || y >= BOARDGRIDSIZE) return -1;
+	return logicBoard[x][y].pieceType;
+}
+
+int ChessLogic_getChessSquarePieceColor(int x, int y){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (x < 0 || x >= BOARDGRIDSIZE ||
 		y < 0 || y >= BOARDGRIDSIZE) return -1;
 	return logicBoard[x][y].pieceColor;
 }
 
-int ChessLogic_getChessSquarePieceType(char letter, char number){
+int ChessLogic_getChessSquarePieceTypeChar(char letter, char number){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	int x = getBoardLetterIncrement(letter);
 	int y = getBoardNumberIncrement(number);
 	if (x == -1 || y == -1) return -1;
-	return logicBoard[x][y].pieceType;
+	return ChessLogic_getChessSquarePieceType(x,y);
 }
 
-int ChessLogic_getChessSquarePieceColor(char letter, char number){
+int ChessLogic_getChessSquarePieceColorChar(char letter, char number){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	int x = getBoardLetterIncrement(letter);
 	int y = getBoardNumberIncrement(number);
 	if (x == -1 || y == -1) return -1;
-	return logicBoard[x][y].pieceColor;
+	return ChessLogic_getChessSquarePieceColor(x,y);
 }
 
-bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty){
-	int srcx = getBoardLetterIncrement(srcletter);
-	int srcy = getBoardNumberIncrement(srcnumber);
+bool ChessLogic_getPieceAvailableMoves(int srcx, int srcy, int dstx, int dsty){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (srcx == -1 || srcy == -1) return false;
 	if (logicBoard[srcx][srcy].pieceType == nopiece) return false;
+	if (logicBoard[srcx][srcy].pieceColor != currentTurn) return false;
 	return logicBoard[srcx][srcy].availableMoves[dstx][dsty];
 }
 
+bool ChessLogic_getPieceAvailableMovesChar(char srcletter, char srcnumber, int dstx, int dsty){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	int srcx = getBoardLetterIncrement(srcletter);
+	int srcy = getBoardNumberIncrement(srcnumber);
+	return ChessLogic_getPieceAvailableMoves(srcx, srcy, dstx, dsty);
+}
+
 int ChessLogic_getCurrentColorTurn(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return currentTurn;
 }
 
 int ChessLogic_getTurnCount(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return turnNumber;
 }
 
 int ChessLogic_getCheckStatus(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (whiteCheckFlag) return white;
 	if (blackCheckFlag) return black;
 	return 0;
 }
 
 int ChessLogic_getCheckMateStatus(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	if (whiteCheckMateFlag) return white;
 	if (blackCheckMateFlag) return black;
 	return 0;
 }
 
 bool ChessLogic_getDrawStatus(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return drawFlag;
+}
+
+/******************************************************
+ * Functions for LCD
+ ******************************************************/
+void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	for (int y = 0; y < BOARDGRIDSIZE; y++){
+		for (int x = 0; x < BOARDGRIDSIZE; x++){
+			if(ChessLogic_getPieceAvailableMoves(srcx, srcy, x, y)){
+				possibleMoves[x][y] = 1;
+			} else {
+				possibleMoves[x][y] = 0;
+			}
+		}
+	}
+}
+
+void ChessLogic_getBoardStateGrid(squareInfo boardStateGrid[BOARDGRIDSIZE][BOARDGRIDSIZE]){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	for (int y = 0; y < BOARDGRIDSIZE; y++){
+		for (int x = 0; x < BOARDGRIDSIZE; x++){
+			if (logicBoard[x][y].pieceType == nopiece){
+				boardStateGrid[x][y].pieceType = nopiece;
+				boardStateGrid[x][y].pieceColor = nocolor;
+				boardStateGrid[x][y].firstMove = true;
+				boardStateGrid[x][y].doubleStep = false;
+				boardStateGrid[x][y].idleInSquare = 0;
+			}
+			boardStateGrid[x][y].pieceType = logicBoard[x][y].pieceType;
+			boardStateGrid[x][y].pieceColor = logicBoard[x][y].pieceColor;
+			boardStateGrid[x][y].firstMove = true;
+			boardStateGrid[x][y].doubleStep = false;
+			boardStateGrid[x][y].idleInSquare = 0;
+		}
+	}
+}
+
+void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	piece->pieceType = nopiece;
+	piece->pieceColor = nocolor;
+
+	//printf("%d\n", piece.pieceType);
+
+	//printf("%d %d\n", srcx, srcy);
+	/*int tmp = 0;
+
+	for(int i = BOARDGRIDSIZE-1; i >= 0; --i){
+		for(int j = 0; j < 8; ++j){
+
+			printf("%d\t", logicBoard[j][i].pieceType);
+
+		}
+		printf("\n");
+	}
+	printf("\n");
+
+	printf("say something\n");
+
+	printf("%d %d %d\n", srcx, srcy, logicBoard[srcx][srcy].pieceType);
+	*/
+	if (logicBoard[srcx][srcy].pieceType != nopiece){
+
+		piece->pieceType = logicBoard[srcx][srcy].pieceType;
+		piece->pieceColor = logicBoard[srcx][srcy].pieceColor;
+
+		/*printf("%d %d\n", logicBoard[srcx][srcy].pieceType, 
+			logicBoard[srcx][srcy].pieceColor);*/
+
+	}
+	/*else{
+		printf("Get type nopiece\n");
+		exit(-1);
+	}*/
+}
+
+bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	if (whiteHasKingSide){
+		pieceInfo->srcx = BOARDGRIDSIZE-1;
+		pieceInfo->srcy = WHITESIDE;
+		pieceInfo->dstx = BOARDGRIDSIZE-1-2;
+		pieceInfo->dsty = WHITESIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = white;
+		whiteHasKingSide = false;
+		return true;
+	} 
+	if (whiteHasQueenSide){
+		pieceInfo->srcx = 0;
+		pieceInfo->srcy = WHITESIDE;
+		pieceInfo->dstx = 3;
+		pieceInfo->dsty = WHITESIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = white;
+		whiteHasQueenSide = false;
+		return true;
+	} 
+	if (blackHasKingSide){
+		pieceInfo->srcx = BOARDGRIDSIZE-1;
+		pieceInfo->srcy = BLACKSIDE;
+		pieceInfo->dstx = BOARDGRIDSIZE-1-2;
+		pieceInfo->dsty = BLACKSIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = black;
+		blackHasKingSide = false;
+		return true;
+	}
+	if (blackHasQueenSide){
+		pieceInfo->srcx = 0;
+		pieceInfo->srcy = BLACKSIDE;
+		pieceInfo->dstx = 3;
+		pieceInfo->dsty = BLACKSIDE;
+		pieceInfo->type = rook;
+		pieceInfo->color = black;
+		blackHasQueenSide = false;
+		return true;
+	}
+	return false;
+}
+
+bool ChessLogic_enPassantTriggered(piecePosUpdate *pieceInfo){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
+	if (pawnHasEnPassant){
+		pieceInfo->srcx = enPassant_dstx;
+		pieceInfo->srcy = enPassant_dsty;
+		pieceInfo->dstx = enPassant_dstx;
+		pieceInfo->dsty = enPassant_dsty;
+		pieceInfo->type = pawn;
+		pieceInfo->color = nocolor;
+		pawnHasEnPassant = false;
+		return true;
+	}
+	return false;
 }
 
 /******************************************************
  * Functions for StockFish UCI
  ******************************************************/
 int ChessLogic_getHalfMoveTimer(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return halfMoveTimer;
 }
 
 int ChessLogic_getFullMoveTimer(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return fullMoveTimer;
 }
 
 bool ChessLogic_canWhiteKingSide(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return whiteCanKingSide;
 }
 
 bool ChessLogic_canWhiteQueenSide(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return whiteCanQueenSide;
 }
 
 bool ChessLogic_canBlackKingSide(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return blackCanKingSide;
 }
 
 bool ChessLogic_canBlackQueenSide(void){
+	pthread_mutex_lock(&chessMutex);
+	pthread_mutex_unlock(&chessMutex);
 	return blackCanQueenSide;
+}
+
+void ChessLogic_getLastMove(piecePosUpdate *move){
+	move->srcx = lastMove.srcx;
+	move->srcy = lastMove.srcy;
+	move->dstx = lastMove.dstx;
+	move->dsty = lastMove.dsty;
+	move->type = lastMove.type;
+	move->color = lastMove.color;
 }
 
 /******************************************************
  * Mutator Chess Logic Functions
  ******************************************************/
-int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char dstnumber){
-	int srcx, srcy, dstx, dsty;
+int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty){
 	if (halfMoveTimer == DRAWTIMER) drawFlag = true;
 	if (whiteCheckMateFlag || blackCheckMateFlag || drawFlag) return -1;
-	
-	srcx = getBoardLetterIncrement(srcletter);
-	srcy = getBoardNumberIncrement(srcnumber);
 
 	// Return -1 if input is incorrect
 	if (srcx == -1 || srcy == -1) return -1;
@@ -836,9 +1167,6 @@ int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char ds
 
 	// Return -1 if user tries to move piece of wrong color
 	if (logicBoard[srcx][srcy].pieceColor != currentTurn) return -1;
-
-	dstx = getBoardLetterIncrement(dstletter);
-	dsty = getBoardNumberIncrement(dstnumber);
 	
 	// Return -1 if input is incorrect
 	if (dstx == -1 || dsty == -1) return -1;
@@ -865,4 +1193,14 @@ int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char ds
 	ChessLogic_nextTurn();
 	pthread_mutex_unlock(&chessMutex);
 	return 0;
+}
+
+int ChessLogic_movePieceChar(char srcletter, char srcnumber, char dstletter, char dstnumber){
+	int srcx, srcy, dstx, dsty;
+	srcx = getBoardLetterIncrement(srcletter);
+	srcy = getBoardNumberIncrement(srcnumber);
+	dstx = getBoardLetterIncrement(dstletter);
+	dsty = getBoardNumberIncrement(dstnumber);
+	
+	return ChessLogic_movePiece(srcx, srcy, dstx, dsty);
 }

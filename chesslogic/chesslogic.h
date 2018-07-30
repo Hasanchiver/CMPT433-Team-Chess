@@ -1,6 +1,21 @@
 #ifndef _CHESSLOGIC_H_
 #define _CHESSLOGIC_H_
+#include "global.h"
 #include <stdbool.h>
+#include <stdint.h>
+
+/******************************************************
+ * Useful Chess format to Board structure conversions
+ * Also BoardStructure to Chess Format conversion
+ ******************************************************/
+int getBoardLetterIncrement(char letter);
+int getBoardNumberIncrement(char number);
+
+char getIncrementToBoardLetter(int x);
+char getIncrementToBoardNumber(int y);
+
+int xyCoordinateToInteger(int x, int y);
+void integerToXYCoordinate(int val, int *x, int *y);
 
 /******************************************************
  * Accessor Chess Logic Functions
@@ -10,16 +25,20 @@ void ChessLogic_startNewGame(void);
 // x range: 0-7
 // y range: 0-7
 // returns -1 if not in range
-int ChessLogic_getCoordinatePieceType(int x, int y);
-int ChessLogic_getCoordinatePieceColor(int x, int y);
+int ChessLogic_getChessSquarePieceType(int srcx, int srcy);
+int ChessLogic_getChessSquarePieceColor(int srcx, int srcy);
 
 // letter range: a, b, c, d, e, f, g, h (must use BoardLetter enum)
 // number range: 1, 2, 3, 4, 5, 6, 7, 8
 // returns -1 if not in range
-int ChessLogic_getChessSquarePieceType(char letter, char number);
-int ChessLogic_getChessSquarePieceColor(char letter, char number);
+int ChessLogic_getChessSquarePieceTypeChar(char letter, char number);
+int ChessLogic_getChessSquarePieceColorChar(char letter, char number);
 
-bool ChessLogic_getPieceAvailableMoves(char srcletter, char srcnumber, int dstx, int dsty);
+// returns true if a piece at (srcx, srcy) can move to (dstx, dsty)
+bool ChessLogic_getPieceAvailableMoves(int srcx, int srcy, int dstx, int dsty);
+
+// similar to ChessLogic_getPieceAvailableMoves but can take i.e."e3 e4" as input
+bool ChessLogic_getPieceAvailableMovesChar(char srcletter, char srcnumber, int dstx, int dsty);
 
 // returns 1 for white player turn
 // returns 2 for black player turn
@@ -29,17 +48,35 @@ int ChessLogic_getCurrentColorTurn(void);
 int ChessLogic_getTurnCount(void);
 
 // returns 0 for neither
-// returns 1 for white in check or checkmate
-// returns 2 for black in check or checkmate
+// returns 1 for white in check
+// returns 2 for black in check
 int ChessLogic_getCheckStatus(void);
-int ChessLogic_getCheckMateStatus(void);
+
+// returns 0 for neither
+// returns 1 for white checkmate (Black Wins)
+// returns 2 for black checkmate (White Wins)
+int ChessLogic_getCheckMateStatus(void);	//non-zero game over, zero, continue
 
 bool ChessLogic_getDrawStatus(void);
 
 /******************************************************
+ * Functions for LCD
+ ******************************************************/
+// updates an 8 by 8 2d array with all the possible moves of a piece
+void ChessLogic_getPossibleMoves(uint8_t possibleMoves[BOARDGRIDSIZE][BOARDGRIDSIZE], int srcx, int srcy);
+
+// updates an 8 by 8 2d array with the current state of the board
+void ChessLogic_getBoardStateGrid(squareInfo boardStateGrid[BOARDGRIDSIZE][BOARDGRIDSIZE]);
+
+// updates the struct input with information of the piece at (srcx, srcy)
+void ChessLogic_getPieceInfo(squareInfo *piece, int srcx, int srcy);
+
+bool ChessLogic_castlingTriggered(piecePosUpdate *pieceInfo);
+bool ChessLogic_enPassantTriggered(piecePosUpdate *pieceInfo);
+
+/******************************************************
  * Functions for StockFish UCI
  ******************************************************/
-
 // Useful functions for Stockfish UCI
 int ChessLogic_getHalfMoveTimer(void);
 int ChessLogic_getFullMoveTimer(void);
@@ -49,12 +86,15 @@ bool ChessLogic_canWhiteQueenSide(void);
 bool ChessLogic_canBlackKingSide(void);
 bool ChessLogic_canBlackQueenSide(void);
 
+void ChessLogic_getLastMove(piecePosUpdate *move);
+
 /******************************************************
  * Mutator Chess Logic Functions
  ******************************************************/
 // moves piece from one location to another
 // returns 0 if successful
 // returns -1 if move is not applicable
-int ChessLogic_movePiece(char srcletter, char srcnumber, char dstletter, char dstnumber);
+int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty);
+int ChessLogic_movePieceChar(char srcletter, char srcnumber, char dstletter, char dstnumber);
 
 #endif

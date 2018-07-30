@@ -1,10 +1,10 @@
 TARGET= unicodeboard
-SOURCES= unicodeboard.c chesslogic.c 
+SOURCES= unicodeboard.c chesslogic.c networkAPI.c
 TESTTARGET= test
 TESTSOURCES= test.c chesslogic.c networkAPI.c
 
 PUBDIR = $(HOME)/cmpt433/public/project
-WRKDIR = $(HOME)/cmpt433/work/project
+WRKDIR = $(HOME)/cmpt433/work/project/chesslogic
 OUTDIR = $(PUBDIR)
 NODEPATH = $(PUBDIR)/beatbox-server-copy
 CROSS_TOOL = arm-linux-gnueabihf-
