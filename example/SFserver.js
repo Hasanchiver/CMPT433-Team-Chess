@@ -30,7 +30,7 @@ function executeCommand(socket, command, data, replyCommand) {
 
 	// Info for connecting to the local process via UDP
 	var PORT = 54321;
-	var HOST = '127.0.0.2';
+	var HOST = '127.0.0.1';
 	var buffer = new Buffer(command + " " + data);
 
 
