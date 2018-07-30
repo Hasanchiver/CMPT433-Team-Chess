@@ -1,0 +1,9 @@
+{
+	"name": "chess-server",
+	"version": "0.0.1",
+	"description": "Chess Application on the BeagleBone Green",
+	"dependencies": {
+		"socket.io": "~0.9.6",
+		"mime": "~1.2.7"
+	}
+}
