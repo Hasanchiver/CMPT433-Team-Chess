@@ -180,7 +180,6 @@ static void ChessLogic_updateCastlingFlags(int srcx, int srcy){
 		logicBoard[2][WHITESIDE].pieceType == nopiece &&
 		logicBoard[3][WHITESIDE].pieceType == nopiece){
 		whiteCanQueenSide = true;
-		wprintf(L"White can queenside\n");
 	}
 	// White kingside
 	if (logicBoard[srcx][srcy].pieceType == king &&
@@ -664,7 +663,7 @@ static bool ChessLogic_checkKingCaptureDoesNotCheck(int dstx, int dsty){
 	for (int y = 0; y < BOARDGRIDSIZE; y++){
 		for (int x = 0; x < BOARDGRIDSIZE; x++){
 			if (!ChessLogic_isSameColor(dstx, dsty, x, y)) continue;
-			if (!CheckLogic_isJumpingOverPiece(x, y, dstx, dsty)) continue;
+			if (CheckLogic_isJumpingOverPiece(x, y, dstx, dsty)) continue;
 			if (logicBoard[x][y].pieceType == queen &&
 				ChessLogic_queenMoves(x, y, dstx, dsty)) return true;
 			if (logicBoard[x][y].pieceType == rook &&
@@ -1196,7 +1195,8 @@ int ChessLogic_movePiece(int srcx, int srcy, int dstx, int dsty){
 	if (logicBoard[srcx][srcy].pieceType == pawn) {
 		if (!ChessLogic_pawnMoves(srcx, srcy, dstx, dsty)) return -1;
 		ChessLogic_checkPromotePawn(srcx, srcy, dstx, dsty);
-	} else if (!logicBoard[srcx][srcy].availableMoves[dstx][dsty]) return -1;
+	} 
+	if (!logicBoard[srcx][srcy].availableMoves[dstx][dsty]) return -1;
 	
 	if (logicBoard[srcx][srcy].pieceType == king) {
 		if (!ChessLogic_kingMoves(srcx, srcy, dstx, dsty)) return -1;
